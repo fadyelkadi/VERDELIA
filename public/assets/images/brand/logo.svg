@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 230 52" role="img" aria-labelledby="title">
+  <title id="title">VERDELIA</title>
+  <g fill="none" stroke="#173B32" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24 42C9 35 7 23 13 13c10 1 17 8 17 17" fill="#DCE8D8"/>
+    <path d="M24 42c0-14 7-25 20-31 4 13-2 24-20 31Z" fill="#4F7D5B"/>
+    <path d="M13 13c6 8 10 16 11 29M44 11C35 19 28 29 24 42"/>
+  </g>
+  <text x="58" y="36" fill="#173B32" font-family="Georgia, 'Times New Roman', serif" font-size="27" letter-spacing="4.4">VERDELIA</text>
+</svg>

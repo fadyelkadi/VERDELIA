@@ -1,0 +1,12 @@
+# Configuracion local: no guardar claves, exportaciones ni datos de usuarios.
+.env
+.env.local
+database/exports/*
+database/backups/*
+!database/backups/verdelia_demo.sql
+*.log
+storage/auth-attempts.json
+storage/sessions/
+docs/CREDENCIALES_DEMO.local.md
+.DS_Store
+Thumbs.db
