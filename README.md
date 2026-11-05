@@ -17,6 +17,8 @@ Tienda universitaria ficticia de plantas, macetas y accesorios. Incluye catálog
 4. Valida PHP y `pdo_mysql`, inicializa esquema/semilla idempotentemente y abre `http://127.0.0.1:<puerto>/`.
 5. Detén el servidor con Ctrl+C antes de retirar el USB.
 
+El lanzador sirve únicamente `public/` y escucha en `127.0.0.1`, así que esta forma está pensada para mostrar la tienda en esa misma PC. Guarda la carpeta fuera de `C:\xampp\htdocs` para evitar que Apache exponga por error archivos internos si se activa. No uses `php -S` como servidor de red o de producción; para que otras PCs accedan, configura un servidor PHP real con document root limitado a `public/` y acceso a MySQL.
+
 El lanzador busca XAMPP junto al proyecto, en `VERDELIA_XAMPP_HOME`/`XAMPP_HOME`, en rutas comunes/unidades y finalmente en `PATH`. Si la instalación tiene otra ubicación, define `VERDELIA_XAMPP_HOME` (raíz de XAMPP) o `VERDELIA_PHP_EXE` (ruta a `php.exe`) en CMD. Para cambiar conexión, define `VERDELIA_DB_HOST`, `VERDELIA_DB_PORT`, `VERDELIA_DB_NAME`, `VERDELIA_DB_USER` y `VERDELIA_DB_PASSWORD`. El archivo `.env.example` es una plantilla documental; Windows no lo carga por sí solo. No pongas claves en Git ni en argumentos de comandos.
 
 Para iniciar el servidor sin abrir otra pestaña (por ejemplo, desde una consola de prueba), define `VERDELIA_OPEN_BROWSER=0` antes de ejecutar el lanzador. El valor predeterminado abre la dirección local automáticamente.

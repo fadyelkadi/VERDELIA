@@ -34,10 +34,17 @@ if errorlevel 1 goto :error
 set "PORT=8088"
 if defined VERDELIA_WEB_PORT goto :configured_port
 set "PORT="
-for /f "delims=" %%P in ('"%PHP_EXE%" "%~dp0scripts\find-port.php" 8088') do set "PORT=%%P"
+set "PORT_FILE=%TEMP%\verdelia-port-%RANDOM%-%RANDOM%.tmp"
+"%PHP_EXE%" "%~dp0scripts\find-port.php" 8088 > "%PORT_FILE%"
+if errorlevel 1 (
+  if exist "%PORT_FILE%" type "%PORT_FILE%"
+  del "%PORT_FILE%" >nul 2>&1
+  goto :port_error
+)
+set /p "PORT=" < "%PORT_FILE%"
+del "%PORT_FILE%" >nul 2>&1
 if not defined PORT (
-  echo ERROR: No se encontro un puerto libre. Define VERDELIA_WEB_PORT para indicar uno.
-  goto :error
+  goto :port_error
 )
 goto :port_ready
 
@@ -48,8 +55,7 @@ if errorlevel 1 goto :error
 
 :port_ready
 if not defined PORT (
-  echo ERROR: No se pudo seleccionar un puerto local.
-  goto :error
+  goto :port_error
 )
 
 echo.
@@ -60,6 +66,10 @@ if /I not "%VERDELIA_OPEN_BROWSER%"=="0" start "" "http://127.0.0.1:%PORT%/"
 if errorlevel 1 echo ERROR: El servidor PHP se detuvo con un error.
 pause
 exit /b 1
+
+:port_error
+echo ERROR: No se encontro un puerto libre desde 8088. Define VERDELIA_WEB_PORT para indicar uno.
+goto :error
 
 :error
 echo.
