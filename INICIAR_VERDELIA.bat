@@ -59,9 +59,13 @@ if not defined PORT (
 )
 
 echo.
-echo VERDELIA iniciara en http://127.0.0.1:%PORT%/
-echo Solo accesible desde esta computadora. Deten el servidor con Ctrl+C.
-if /I not "%VERDELIA_OPEN_BROWSER%"=="0" start "" "http://127.0.0.1:%PORT%/"
+echo VERDELIA iniciara en http://localhost:%PORT%/
+echo Tambien responde en 127.0.0.1:%PORT%. Solo accesible desde esta computadora.
+echo Deten los servidores con Ctrl+C antes de retirar el USB.
+start "VERDELIA IPv6" /b "%PHP_EXE%" -S [::1]:%PORT% -t "%~dp0public" "%~dp0public\router.php"
+"%PHP_EXE%" "%~dp0scripts\wait-for-listener.php" %PORT%
+if errorlevel 1 goto :error
+if /I not "%VERDELIA_OPEN_BROWSER%"=="0" start "" "http://localhost:%PORT%/"
 "%PHP_EXE%" -S 127.0.0.1:%PORT% -t "%~dp0public" "%~dp0public\router.php"
 if errorlevel 1 echo ERROR: El servidor PHP se detuvo con un error.
 pause
