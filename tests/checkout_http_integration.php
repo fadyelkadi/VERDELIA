@@ -97,7 +97,7 @@ try {
     $assert($registered['status']===303,'segunda cuenta ficticia puede iniciar su sesión de prueba');
     $privateReceipt=$request($userB,$base,'GET',$receiptLocation);
     $assert($privateReceipt['status']===404,'otro cliente no obtiene detalle ni recibo del pedido');
-    $admin=$newClient(); $adminLoginPage=$request($admin,$base,'GET','/login'); $adminLogin=$request($admin,$base,'POST','/login',['csrf_token'=>$csrf($adminLoginPage['body']),'email'=>'admin@verdelia.test','password'=>'VerdeliaAdmin2026!']);
+    $admin=$newClient(); $adminLoginPage=$request($admin,$base,'GET','/login'); $adminLogin=$request($admin,$base,'POST','/login',['csrf_token'=>$csrf($adminLoginPage['body']),'email'=>'admin@verdelia.test','password'=>'123456789']);
     $assert($adminLogin['status']===303 && $adminLogin['location']==='/admin','la cuenta ADMIN conserva su flujo de autenticación');
     $adminOrders=$request($admin,$base,'GET','/admin/pedidos');
     $assert($adminOrders['status']===200 && str_contains($adminOrders['body'],$orderNumber),'ADMIN consulta pedidos reales persistidos');

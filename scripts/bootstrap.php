@@ -42,7 +42,7 @@ try {
         foreach ($products as $product) {
             $pstmt->execute([$catIds[$product['category']],$product['sku'],$product['slug'],$product['name'],$product['description'],$product['price'],$product['cost'],$product['stock'],$product['light'],$product['care'],(int)$product['featured']]);
         }
-        $adminHash = password_hash('VerdeliaAdmin2026!', PASSWORD_BCRYPT);
+        $adminHash = password_hash('123456789', PASSWORD_BCRYPT);
         $customerHash = password_hash('VerdeliaCliente2026!', PASSWORD_BCRYPT);
         $ustmt = $pdo->prepare('INSERT INTO users(name,email,password_hash,role) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE email=VALUES(email)');
         $ustmt->execute(['Admin Verdelia','admin@verdelia.test',$adminHash,'ADMIN']);

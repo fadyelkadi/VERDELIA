@@ -25,7 +25,14 @@ Para iniciar el servidor sin abrir otra pestaña (por ejemplo, desde una consola
 
 ## Base de demostración
 
-Nombre: `verdelia_demo`. El bootstrap conserva 12 tablas, 4 categorías, 12 productos, 2 cuentas demo y 96 pedidos históricos. Las claves de demostración se mantienen en el bootstrap local y en `docs/CREDENCIALES_DEMO.local.md` del workspace principal; ese archivo local no se copia a la carpeta Desktop sincronizada. Cambia las claves si conservas la instalación fuera de una demo de aula. Los pedidos y pagos son simulados, sin dinero real.
+Nombre: `verdelia_demo`. El bootstrap conserva 12 tablas, 4 categorías, 12 productos, 2 cuentas demo y 96 pedidos históricos. Credenciales de prueba:
+
+| Rol | Usuario | Contraseña |
+| --- | --- | --- |
+| Administrador | `admin@verdelia.test` | `123456789` |
+| Cliente | `cliente@verdelia.test` | `VerdeliaCliente2026!` |
+
+Son cuentas y claves públicas destinadas exclusivamente a la demostración local. No uses estos datos en producción ni en sistemas con información real. El bootstrap no cambia las claves de cuentas que ya existen; para instalaciones creadas antes de este cambio, la contraseña inicial del administrador puede seguir siendo la anterior hasta actualizarla en esa base de datos. Los pedidos y pagos son simulados, sin dinero real.
 
 El esquema y la semilla viven en `database/schema.sql` y `scripts/bootstrap.php`. El bootstrap no elimina tablas ni reinicia datos existentes. Tras inicializar MySQL, genera una exportación completa, con nombre de fecha/hora y sin sobrescribir respaldos, ejecutando `php scripts/backup.php`. Consulta [Restaurar base de datos](RESTAURAR_BASE_DATOS.md) y [las decisiones](docs/DECISIONES.md) antes de importar o actualizar manualmente.
 
