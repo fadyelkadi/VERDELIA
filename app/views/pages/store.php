@@ -6,7 +6,7 @@ $sortLabels = ['featured'=>'Selección VERDELIA','price-asc'=>'Precio: menor a m
 ?>
 <section class="catalog-hero page-gutter">
   <div><p class="eyebrow">La colección VERDELIA</p><h1><?= h($categoryTitle ?? 'Encuentra tu próxima planta.') ?></h1></div>
-  <p>Plantas y objetos que nos gustan por sus formas, texturas y maneras distintas de vivir en casa. <span>Catálogo e inventario de demostración académica.</span></p>
+  <p>Plantas y objetos que nos gustan por sus formas, texturas y maneras distintas de vivir en casa.</p>
 </section>
 <section class="catalog-wrap page-gutter" aria-label="Catálogo de productos">
   <div class="catalog-toolbar"><span><strong><?= (int)$catalogResult['total'] ?> piezas</strong> en la colección · Página <?= (int)$catalogResult['page'] ?> de <?= (int)$catalogResult['total_pages'] ?></span><label class="sort-control">Ordenar por <select name="sort" data-sort form="catalog-filters"><?php foreach($sortLabels as $value=>$label): ?><option value="<?= h($value) ?>" <?= $filters['sort']===$value?'selected':'' ?>><?= h($label) ?></option><?php endforeach; ?></select></label></div>

@@ -1,10 +1,19 @@
 <?php
 declare(strict_types=1);
 
+header_remove('X-Powered-By');
+header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+header('X-Frame-Options: DENY');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()');
+header('Cache-Control: no-store');
+
 require dirname(__DIR__) . '/app/helpers.php';
 require dirname(__DIR__) . '/app/database.php';
 require dirname(__DIR__) . '/app/CatalogRepository.php';
 require dirname(__DIR__) . '/app/ShopChatRegression.php';
+require dirname(__DIR__) . '/app/ShopChatQuery.php';
 require dirname(__DIR__) . '/app/ShopChat.php';
 require dirname(__DIR__) . '/app/AuthService.php';
 require dirname(__DIR__) . '/app/auth.php';
@@ -38,6 +47,9 @@ $GLOBALS['verdelia_auth_unavailable'] = $authUnavailable;
 
 $routePath = '/' . trim(rawurldecode(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'), '/');
 if ($routePath === '//') $routePath = '/';
+if (preg_match('~^/(?:api|admin|login|logout|registro|cuenta|checkout|pedido|recibo)(?:/|$)~D', $routePath)) {
+    header('X-Robots-Tag: noindex');
+}
 if ($routePath === '/api/chat') {
     try {
         (new ShopChat(new CatalogRepository(verdelia_db())))->handle($requestMethod);
@@ -46,7 +58,6 @@ if ($routePath === '/api/chat') {
         http_response_code(503);
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store, max-age=0');
-        header('X-Content-Type-Options: nosniff');
         exit(json_encode(['ok'=>false,'message'=>'El asistente no está disponible temporalmente. Inténtalo nuevamente.'], JSON_UNESCAPED_UNICODE));
     }
 }
@@ -82,7 +93,7 @@ if ($routePath === '/checkout' && $requestMethod === 'POST') {
         verdelia_log_error($exception, 'checkout');
         http_response_code(503);
         header('Cache-Control: no-store');
-        exit('No pudimos completar la operación de demostración. Revisa el estado de tu pedido antes de volver a intentarlo.');
+        exit('No pudimos completar el pedido. Revisa su estado antes de volver a intentarlo.');
     }
 }
 if (str_starts_with($routePath,'/admin') && $requestMethod==='POST') {
@@ -109,9 +120,7 @@ if (in_array($routePath, ['/cuenta', '/cuenta/pedidos', '/checkout'], true) || s
     header('Pragma: no-cache');
 }
 
-$path = rawurldecode(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
-$path = '/' . trim($path, '/');
-if ($path === '//') $path = '/';
+$path = $routePath;
 $products = [];
 $categories = [];
 $product = null;
@@ -124,7 +133,6 @@ $filters = ['category'=>null,'query'=>'','min_price'=>null,'max_price'=>null,'in
 $route = 'home';
 $view = 'home.php';
 $pageTitle = 'Plantas, macetas y pequeños espacios verdes';
-$activeNav = 'inicio';
 $flash = in_array($routePath, ['/login', '/registro', '/cuenta', '/cuenta/pedidos', '/checkout'], true) || str_starts_with($routePath, '/pedido/') || str_starts_with($routePath,'/admin') ? verdelia_take_flash() : [];
 $checkoutCart = [];
 $checkoutKeys = [];
@@ -162,7 +170,6 @@ if ($path === '/') {
 } elseif ($path === '/tienda' || preg_match('#^/categoria/([^/]+)$#', $path, $routeMatch) === 1) {
     $route = 'store';
     $view = 'store.php';
-    $activeNav = 'tienda';
     $pageTitle = 'Nuestra colección';
     if (isset($routeMatch[1])) {
         $categorySlug = $routeMatch[1];
@@ -212,7 +219,7 @@ if ($path === '/') {
         }
     }
 } elseif (preg_match('#^/producto/([a-z0-9-]{1,120})$#', $path, $match) === 1) {
-    $route = 'product'; $view = 'product.php'; $activeNav = 'tienda';
+    $route = 'product'; $view = 'product.php';
     try {
         $repository = new CatalogRepository(verdelia_db());
         $product = $repository->bySlug($match[1]);
@@ -270,10 +277,10 @@ if ($path === '/') {
     }
 } elseif (in_array($path, ['/nosotros','/contacto','/preguntas-frecuentes','/privacidad'], true)) {
     $pages=['/nosotros'=>['about','Sobre Verdelia'],'/contacto'=>['contact','Contacto'],'/preguntas-frecuentes'=>['faq','Preguntas frecuentes'],'/privacidad'=>['privacy','Privacidad']];
-    [$route,$pageTitle]=$pages[$path]; $view='institutional.php'; $activeNav='nosotros';
+    [$route,$pageTitle]=$pages[$path]; $view='institutional.php';
 } elseif (str_starts_with($path, '/admin')) {
     verdelia_require_admin();
-    $route='admin'; $view='admin.php'; $activeNav='admin'; $pageTitle='Panel administrativo';
+    $route='admin'; $view='admin.php'; $pageTitle='Panel administrativo';
     $adminSection=trim(substr($path, strlen('/admin')), '/');
     try {
         $adminRepository=new AdminRepository(verdelia_db());

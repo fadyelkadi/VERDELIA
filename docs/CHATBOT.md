@@ -4,12 +4,14 @@ El chat de la tienda funciona con el catálogo y el historial de VERDELIA. Los v
 
 - «¿Cuánto cuesta la Monstera?» consulta el precio vigente de la ficha.
 - «¿Hay stock de Sansevieria?» consulta las unidades disponibles.
-- «Recomiéndame una planta para poca luz y de cuidado fácil» ordena plantas disponibles según su grado de compatibilidad con la luz y el cuidado indicados. La respuesta enlaza a las fichas para revisar sus condiciones.
-- «¿Cuál es la tendencia de demanda del Aloe?» estima unidades vendidas en el próximo período mensual usando regresión lineal sobre el historial de ventas confirmadas. Si faltan observaciones, el chat lo indica. Los pedidos de la demo son simulados.
+- «¿Y cuántas quedan?» usa el último producto identificado. La conversación se conserva al navegar por la tienda en la misma pestaña.
+- «Recomiéndame una planta sin sol directo por menos de $20» filtra por luz y presupuesto en USD. Si ninguna planta cumple las condiciones, el chat lo indica.
+- Para consultas sobre seguridad de mascotas o cuidados que la ficha no especifica, el chat explica qué información falta.
+- «¿Cuál es la tendencia de demanda del Aloe?» usa regresión lineal sobre seis meses completos de ventas confirmadas y estima el primer mes posterior a ese historial. Si faltan observaciones o se pide otro período, el chat lo indica. El historial inicial contiene pedidos con pago simulado.
 
-## Ejecutar en URBE
+## Ejecutar en Windows
 
-Extrae el ZIP completo, inicia MySQL en XAMPP y ejecuta `INICIAR_VERDELIA.bat`. Si el doble clic no abre la consola, sigue los pasos de [instalación en URBE](../INSTALACION_URBE.md). Puedes consultar el pronóstico con el motor PHP incluido.
+Extrae el ZIP completo, inicia MySQL en XAMPP y ejecuta `INICIAR_VERDELIA.bat`. Si el doble clic no abre la consola, sigue los pasos de [instalación con XAMPP](../INSTALACION_URBE.md). Puedes consultar el pronóstico con el motor PHP incluido.
 
 Para usar el motor Python en una PC que ya tiene Python 3, abre CMD en la carpeta de VERDELIA y ejecuta:
 

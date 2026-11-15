@@ -55,14 +55,12 @@ final class AnalyticsRepository
             );
         $trendSeries = $this->buildSeries($trendDailyRows,$from,$to,$period);
         $trendMetrics = $this->metrics($trendDailyRows);
-        $values = array_map(static fn(array $point): float => (float)$point[$modelMetricKey],$trendSeries);
-        // An empty interval has no observations to model: zero-filled chart buckets are not sales data.
-        $linear = $trendMetrics['confirmed_orders'] > 0
-            ? AnalyticsModels::linear($values,3)
-            : AnalyticsModels::linear([],3);
-        $exponential = $trendMetrics['confirmed_orders'] > 0
-            ? AnalyticsModels::exponential($values,3)
-            : AnalyticsModels::exponential([],3);
+        $modelSeries = array_values(array_filter($trendSeries, static fn(array $point): bool => !$point['partial']));
+        // Keep closed zero-sales periods, but avoid training on an entirely empty interval.
+        $values = array_sum(array_column($modelSeries, 'confirmed_orders')) === 0 ? []
+            : array_map(static fn(array $point): float => (float)$point[$modelMetricKey], $modelSeries);
+        $linear = AnalyticsModels::linear($values, 3);
+        $exponential = AnalyticsModels::exponential($values, 3);
         $comparison = AnalyticsModels::compare($linear,$exponential);
         $currentMetrics['gross_profit_cents'] = $currentMetrics['revenue_cents'] - $currentMetrics['cogs_cents'];
         $previousMetrics['gross_profit_cents'] = $previousMetrics['revenue_cents'] - $previousMetrics['cogs_cents'];
@@ -95,12 +93,13 @@ final class AnalyticsRepository
                 'product'=>$selectedProduct,
                 'metric'=>$modelMetric,
                 'series'=>$trendSeries,
+                'model_series'=>$modelSeries,
                 'metrics'=>$trendMetrics,
             ],
             'categories'=>$categories,
             'models'=>['linear'=>$linear,'exponential'=>$exponential,'comparison'=>$comparison],
             'definitions'=>[
-                'revenue'=>'Suma de precios históricos por cantidad en pedidos pagados/entregados con pago aprobado; excluye envío (demo: $0).',
+                'revenue'=>'Suma de precios históricos por cantidad en pedidos pagados/entregados con pago aprobado; excluye el importe de la entrega.',
                 'cogs'=>'Suma de costos unitarios históricos por cantidad en las mismas líneas confirmadas.',
                 'gross_profit'=>'Ingreso de productos menos costo de mercancía vendida; estimación bruta, no descuenta gastos, impuestos ni operación.',
                 'confirmation_date'=>'Los períodos usan confirmed_at; se requiere estado PAID/FULFILLED y al menos un pago APPROVED.',
@@ -111,11 +110,11 @@ final class AnalyticsRepository
     private function filters(?string $fromValue, ?string $toValue, ?string $periodValue): array
     {
         $today = new DateTimeImmutable('today');
-        $fromValue = $fromValue !== null && $fromValue !== '' ? $fromValue : $today->modify('-6 months')->format('Y-m-d');
         $toValue = $toValue !== null && $toValue !== '' ? $toValue : $today->format('Y-m-d');
         $period = in_array($periodValue,self::VALID_PERIODS,true) ? (string)$periodValue : 'month';
-        $from = $this->strictDate($fromValue,'La fecha inicial no es válida.');
         $to = $this->strictDate($toValue,'La fecha final no es válida.');
+        $fromValue = $fromValue !== null && $fromValue !== '' ? $fromValue : $to->modify('first day of this month')->modify('-6 months')->format('Y-m-d');
+        $from = $this->strictDate($fromValue,'La fecha inicial no es válida.');
         if ($from > $to) throw new InvalidArgumentException('La fecha inicial debe ser anterior o igual a la fecha final.');
         $days = (int)$from->diff($to)->days + 1;
         if ($days > self::MAX_RANGE_DAYS) throw new InvalidArgumentException('El intervalo máximo para esta consulta es de 730 días.');
@@ -224,10 +223,15 @@ final class AnalyticsRepository
             default=>$from,
         };
         $last = $period === 'week' ? $to->modify('monday this week') : ($period === 'month' ? $to->modify('first day of this month') : $to);
+        $today = new DateTimeImmutable('today');
         while ($cursor <= $last) {
             [$key,$label] = $this->periodKey($cursor,$period);
-            $keys[$key] = ['label'=>$label,'revenue_cents'=>0,'cogs_cents'=>0,'confirmed_orders'=>0,'units'=>0];
-            $cursor = $period === 'week' ? $cursor->modify('+1 week') : ($period === 'month' ? $cursor->modify('+1 month') : $cursor->modify('+1 day'));
+            $next = $cursor->modify(match ($period) { 'week'=>'+1 week', 'month'=>'+1 month', default=>'+1 day' });
+            $keys[$key] = [
+                'label'=>$label, 'revenue_cents'=>0, 'cogs_cents'=>0, 'confirmed_orders'=>0, 'units'=>0,
+                'partial'=>$cursor < $from || $next->modify('-1 day') > $to || $next > $today,
+            ];
+            $cursor = $next;
         }
         foreach ($dailyRows as $row) {
             $date = new DateTimeImmutable((string)$row['sale_day']);

@@ -83,7 +83,7 @@ final class OrderRepository
             $now = (new DateTimeImmutable('now'))->format('Y-m-d H:i:s');
             $address = trim($delivery['address'] . ', ' . $delivery['city'] . ', ' . $delivery['state'] . ($delivery['postal_code'] !== '' ? ' ' . $delivery['postal_code'] : ''));
             if (strlen($address) > 255) throw new OrderException('La dirección completa es demasiado larga.');
-            $shipping = 0; // Entrega ficticia gratuita en esta demostración académica.
+            $shipping = 0; // El simulador aplica entrega gratuita.
             $total = $subtotal + $shipping;
 
             if (is_array($order)) {
@@ -107,7 +107,7 @@ final class OrderRepository
 
             if ($decision === 'approve') {
                 $decrement = $this->pdo->prepare('UPDATE products SET stock=stock-? WHERE id=? AND active=1 AND stock>=?');
-                $movement = $this->pdo->prepare('INSERT INTO stock_movements(product_id,order_id,delta,reason,created_at) VALUES(?,?,?,\'venta demo aprobada\',?)');
+                $movement = $this->pdo->prepare('INSERT INTO stock_movements(product_id,order_id,delta,reason,created_at) VALUES(?,?,?,\'pago simulado aprobado\',?)');
                 foreach ($lines as $line) {
                     $decrement->execute([$line['quantity'],$line['product_id'],$line['quantity']]);
                     if ($decrement->rowCount() !== 1) throw new OrderException('El stock cambió durante la compra. No se registró el pago; revisa tu carrito.', 409);

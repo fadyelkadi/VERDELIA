@@ -1,6 +1,6 @@
 # VERDELIA
 
-Tienda universitaria ficticia de plantas, macetas y accesorios. Incluye catálogo e inventario MySQL, autenticación, carrito persistente, checkout con pago simulado, administración y analítica de ventas.
+Tienda de plantas, macetas y accesorios. Incluye catálogo e inventario MySQL, autenticación, carrito persistente, checkout con pago simulado, administración y analítica de ventas.
 
 ## Requisitos
 
@@ -40,16 +40,16 @@ INICIAR_VERDELIA.bat
 
 El ZIP incluye el script de Python. En las PCs con XAMPP, el cálculo se ejecuta en PHP cuando Python no está configurado o no responde.
 
-## Base de demostración
+## Base local y cuentas de prueba
 
-Nombre: `verdelia_demo`. El bootstrap conserva 12 tablas, 4 categorías, 12 productos, 2 cuentas demo y 96 pedidos históricos. Credenciales de prueba:
+Nombre: `verdelia_demo`. Al arrancar con una base vacía, VERDELIA crea 12 tablas, 4 categorías, 12 productos y un historial simulado de 13 meses completos más la parte transcurrida del mes actual. Los períodos completos alimentan la regresión. Una base ya inicializada conserva sus pedidos. Credenciales de prueba:
 
 | Rol | Usuario | Contraseña |
 | --- | --- | --- |
 | Administrador | `admin@verdelia.test` | `123456789` |
 | Cliente | `cliente@verdelia.test` | `VerdeliaCliente2026!` |
 
-Son cuentas y claves públicas destinadas exclusivamente a la demostración local. No uses estos datos en producción ni en sistemas con información real. El bootstrap no cambia las claves de cuentas que ya existen; para instalaciones creadas antes de este cambio, la contraseña inicial del administrador puede seguir siendo la anterior hasta actualizarla en esa base de datos. Los pedidos y pagos son simulados, sin dinero real.
+Son cuentas y claves públicas para las pruebas locales. No uses estos datos en producción ni en sistemas con información real. El bootstrap no cambia las claves de cuentas que ya existen; para instalaciones creadas antes de este cambio, la contraseña inicial del administrador puede seguir siendo la anterior hasta actualizarla en esa base de datos. Los pedidos y pagos son simulados, sin dinero real.
 
 El esquema y la semilla viven en `database/schema.sql` y `scripts/bootstrap.php`. El bootstrap no elimina tablas ni reinicia datos existentes. Tras inicializar MySQL, genera una exportación completa, con nombre de fecha/hora y sin sobrescribir respaldos, ejecutando `php scripts/backup.php`. Consulta [Restaurar base de datos](RESTAURAR_BASE_DATOS.md) y [las decisiones](docs/DECISIONES.md) antes de importar o actualizar manualmente.
 
@@ -66,4 +66,4 @@ El esquema y la semilla viven en `database/schema.sql` y `scripts/bootstrap.php`
 
 Inicio, Tienda, filtros, orden, búsqueda, paginación y fichas consultan MySQL. El carrito se valida en el servidor y persiste para clientes autenticados; consultar o editarlo no descuenta stock. El checkout crea pedidos persistentes y ofrece resultados de pago simulados con recibo imprimible, sin cobros reales. ADMIN gestiona productos, categorías, imágenes locales, inventario y pedidos; consulta clientes en `/admin` y revisa métricas/modelos en `/admin/analitica`. Allí puede elegir un producto y ajustar regresiones lineal y exponencial sobre sus ingresos o ganancia bruta estimada. La ganancia no descuenta gastos, impuestos ni operación; el ajuste exponencial requiere valores positivos.
 
-Consulta [la guía de presentación](docs/GUIA_PRESENTACION_URBE.md), [la matriz de requisitos](docs/REQUISITOS_PROFESOR.md), [las pruebas finales](docs/PRUEBAS_FINALES.md), [el progreso](docs/PROGRESO.md) y [la restauración](RESTAURAR_BASE_DATOS.md). El arranque requiere MySQL/MariaDB compatible en cada PC. Ejecutar XAMPP desde USB no está garantizado en cualquier equipo; esta entrega no copia ni instala XAMPP.
+Consulta la [guía de restauración](RESTAURAR_BASE_DATOS.md) y la [referencia de compatibilidad con PHP](docs/COMPATIBILIDAD_PHP.md). El arranque requiere MySQL/MariaDB compatible en cada PC. Ejecutar XAMPP desde USB no está garantizado en cualquier equipo; esta entrega no copia ni instala XAMPP.

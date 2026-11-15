@@ -1,7 +1,8 @@
 (function () {
   'use strict';
 
-  const pageProducts = Array.isArray(window.VERDELIA_PRODUCTS) ? window.VERDELIA_PRODUCTS : [];
+  const productData = document.getElementById('verdelia-products');
+  const pageProducts = JSON.parse(productData?.content.textContent || '[]');
   const productBySku = new Map(pageProducts.map((product) => [product.sku, product]));
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
   const money = (cents) => '$' + (Number(cents || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -19,6 +20,9 @@
 
   const updateCartBadge = (count) => {
     document.querySelectorAll('[data-cart-count]').forEach((node) => { node.textContent = String(count); });
+    const link = document.querySelector('[data-cart-link]');
+    const label = count === 1 ? 'Carrito de compras, 1 unidad' : 'Carrito de compras, ' + count + ' unidades';
+    link?.setAttribute('aria-label', label);
   };
 
   const renderCart = (cart) => {
@@ -114,7 +118,7 @@
     input?.setCustomValidity('');
     try {
       await mutateCart({ action: 'add', sku, quantity });
-      toast(product.name + ' se añadió al carrito. Las existencias se descuentan al aprobar la compra demo.');
+      toast(product.name + ' se añadió al carrito.');
     } catch (error) { toast(error.message); }
   };
 
@@ -128,17 +132,51 @@
     } catch (error) { toast(error.message); }
   };
 
+  const menuButton = document.querySelector('[data-menu-toggle]');
+  const nav = menuButton && document.getElementById(menuButton.getAttribute('aria-controls'));
+  if (menuButton && nav) {
+    const mobile = window.matchMedia('(max-width: 800px)');
+    const isOpen = () => menuButton.getAttribute('aria-expanded') === 'true';
+    const insideMenu = (target) => target instanceof Node && (menuButton.contains(target) || nav.contains(target));
+    const setMenu = (open) => {
+      nav.classList.toggle('is-open', open);
+      menuButton.setAttribute('aria-expanded', String(open));
+      menuButton.setAttribute('aria-label', open ? 'Cerrar menú' : 'Abrir menú');
+    };
+    menuButton.closest('.header-inner').setAttribute('data-menu-ready', '');
+    menuButton.addEventListener('click', (event) => {
+      const open = !isOpen();
+      setMenu(open);
+      if (open && event.detail === 0) nav.querySelector('a')?.focus();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && isOpen() && insideMenu(event.target)) {
+        event.preventDefault();
+        setMenu(false);
+        menuButton.focus();
+      }
+    });
+    document.addEventListener('focusin', (event) => {
+      if (isOpen() && !insideMenu(event.target)) setMenu(false);
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (!isOpen() || insideMenu(event.target)) return;
+      const focusWasInNav = nav.contains(document.activeElement);
+      setMenu(false);
+      if (focusWasInNav) menuButton.focus();
+    });
+    mobile.addEventListener('change', (event) => {
+      const focusWasInNav = nav.contains(document.activeElement);
+      const focusWasOnButton = document.activeElement === menuButton;
+      setMenu(false);
+      if (event.matches && focusWasInNav) menuButton.focus();
+      if (!event.matches && focusWasOnButton) nav.querySelector('a')?.focus();
+    });
+  }
+
   document.addEventListener('click', (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
-    const menuButton = target.closest('[data-menu-toggle]');
-    if (menuButton) {
-      const nav = document.querySelector('[data-main-nav]');
-      const open = menuButton.getAttribute('aria-expanded') !== 'true';
-      menuButton.setAttribute('aria-expanded', String(open));
-      menuButton.setAttribute('aria-label', open ? 'Cerrar menú' : 'Abrir menú');
-      nav?.classList.toggle('is-open', open);
-    }
     const addButton = target.closest('[data-add-to-cart]'); if (addButton) addToCart(addButton);
     const stepButton = target.closest('[data-quantity-step]');
     if (stepButton) {
@@ -158,24 +196,20 @@
     const preview = select.closest('label')?.querySelector('.admin-image-preview');
     if (preview && option?.dataset.image) preview.src = option.dataset.image;
   }));
+  document.addEventListener('submit', (event) => {
+    if (event.target instanceof HTMLFormElement && event.target.dataset.confirm
+      && !window.confirm(event.target.dataset.confirm)) event.preventDefault();
+  });
 
   const priceRange = document.querySelector('[data-filter-price]');
   priceRange?.addEventListener('input', () => { const label=document.querySelector('[data-price-label]'); if (label) label.textContent=money(Number(priceRange.value)); });
   document.querySelector('[data-sort]')?.addEventListener('change', (event) => document.getElementById(event.target.getAttribute('form'))?.requestSubmit());
 
-  document.querySelectorAll('[data-demo-form]').forEach((form) => form.addEventListener('submit', (event) => {
+  document.querySelectorAll('[data-contact-form]').forEach((form) => form.addEventListener('submit', (event) => {
     event.preventDefault();
     if (!form.reportValidity()) return;
-    const submit=form.querySelector('[type="submit"]'); const feedback=form.querySelector('[data-form-feedback]');
-    if (submit) { submit.disabled=true; submit.classList.add('is-loading'); }
-    if (feedback) feedback.textContent='Comprobando campos…';
-    window.setTimeout(() => {
-      if (submit) { submit.disabled=false; submit.classList.remove('is-loading'); }
-      const kind=form.dataset.formKind||'formulario';
-      const message=kind==='checkout'?'El checkout está disponible. Revisa el resumen antes de continuar.':kind==='contacto'?'Mensaje de ejemplo preparado; no se envió ni se guardó.':'Formulario de demostración validado.';
-      if (feedback) feedback.textContent=message;
-      toast(message);
-    },450);
+    const feedback = form.querySelector('[data-form-feedback]');
+    if (feedback) feedback.textContent = 'Mensaje revisado. El formulario no realiza envíos.';
   }));
 
   const chartColors = { revenue: '#4f7d5b', cost: '#b8795a', profit: '#355d84', linear: '#b8795a', exponential: '#355d84', grid: '#e6e8e0', text: '#59665f' };
@@ -190,48 +224,56 @@
     const context = canvas.getContext('2d');
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, width, height);
-    context.font = '12px system-ui, sans-serif';
+    context.font = '13px system-ui, sans-serif';
     context.fillStyle = chartColors.text;
     return { context, width, height };
   };
-  const chartFrame = (context, width, height, min, max, labels) => {
-    const pad = { left: 54, right: 12, top: 14, bottom: 38 };
+  const chartFrame = (context, width, height, min, max, labels, barCenters = false) => {
+    const span = max - min || 1;
+    const amounts = Array.from({ length: 5 }, (_, index) => money(min + span * (4 - index) / 4));
+    const left = Math.ceil(Math.max(...amounts.map(label => context.measureText(label).width))) + 12;
+    const pad = { left, right: 12, top: 14, bottom: 38 };
     const plotW = Math.max(20, width - pad.left - pad.right);
     const plotH = Math.max(20, height - pad.top - pad.bottom);
-    const span = max - min || 1;
     const y = (value) => pad.top + (max - value) * plotH / span;
     context.strokeStyle = chartColors.grid;
     context.fillStyle = chartColors.text;
     context.lineWidth = 1;
     for (let i = 0; i <= 4; i += 1) {
-      const value = min + span * (4 - i) / 4;
       const py = pad.top + plotH * i / 4;
       context.beginPath(); context.moveTo(pad.left, py); context.lineTo(width - pad.right, py); context.stroke();
       context.textAlign = 'right'; context.textBaseline = 'middle';
-      context.fillText(money(value), pad.left - 7, py);
+      context.fillText(amounts[i], pad.left - 7, py);
     }
     const count = labels.length;
-    const widestLabel = labels.reduce((widest, label) => Math.max(widest, context.measureText(String(label || '')).width), 0);
-    const candidateCount = Math.min(6, count, Math.max(2, Math.floor(plotW / (widestLabel + 12)) + 1));
-    const candidates = Array.from({ length: candidateCount }, (_, index) => candidateCount === 1 ? 0 : Math.round(index * (count - 1) / (candidateCount - 1)));
-    const tickIndices = [];
-    const labelBounds = (at, index) => {
-      const px = pad.left + (count <= 1 ? 0 : at * plotW / (count - 1));
-      const labelWidth = context.measureText(String(labels[at] || '')).width;
-      const align = index === 0 ? 'left' : (index === candidateCount - 1 ? 'right' : 'center');
-      return { at, px, align, left: align === 'left' ? px : (align === 'right' ? px - labelWidth : px - labelWidth / 2), right: align === 'left' ? px + labelWidth : (align === 'right' ? px : px + labelWidth / 2) };
-    };
-    candidates.forEach((at, index) => {
-      const candidate = labelBounds(at, index);
-      const previous = tickIndices.length ? labelBounds(tickIndices[tickIndices.length - 1], tickIndices.length - 1) : null;
-      if (!previous || candidate.left >= previous.right + 8) tickIndices.push(at);
-      else if (index === candidates.length - 1 && tickIndices.length > 1) tickIndices[tickIndices.length - 1] = at;
-    });
-    tickIndices.forEach((at, index) => {
-      const tick = labelBounds(at, index);
-      context.textAlign = tick.align; context.textBaseline = 'top';
-      context.fillText(String(labels[at] || ''), tick.px, height - pad.bottom + 12);
-    });
+    if (count > 0) {
+      const gap = 8;
+      const labelLimit = count === 1 ? plotW : (plotW - gap) / 2;
+      const tickFor = (index) => {
+        const label = String(labels[index] || '');
+        let prefix = label;
+        while (context.measureText(prefix + (prefix !== label ? '…' : '')).width > labelLimit && prefix.length > 1) {
+          prefix = prefix.slice(0, -1);
+        }
+        const text = prefix === label ? label : prefix + '…';
+        const labelWidth = context.measureText(text).width;
+        const fraction = count === 1 ? 0.5 : (barCenters ? (index + 0.5) / count : index / (count - 1));
+        const x = Math.max(pad.left, Math.min(pad.left + plotW - labelWidth, pad.left + fraction * plotW - labelWidth / 2));
+        return { text, x, right: x + labelWidth };
+      };
+      const ticks = [tickFor(0)];
+      if (count > 1) {
+        const last = tickFor(count - 1);
+        const step = Math.max(1, Math.ceil((count - 1) / 5));
+        for (let index = step; index < count - 1; index += step) {
+          const tick = tickFor(index);
+          if (tick.x >= ticks[ticks.length - 1].right + gap && tick.right + gap <= last.x) ticks.push(tick);
+        }
+        ticks.push(last);
+      }
+      context.textAlign = 'left'; context.textBaseline = 'top';
+      ticks.forEach(tick => context.fillText(tick.text, tick.x, height - pad.bottom + 12, labelLimit));
+    }
     return { pad, plotW, plotH, y };
   };
   const showChartEmpty = (canvas, message) => {
@@ -245,7 +287,8 @@
     const result = [];
     for (let i = 0; i < points.length; i += stride) {
       const part = points.slice(i, i + stride);
-      result.push({ label: part.length > 1 ? `${part[0].label}–${part[part.length - 1].label}` : part[0].label, value: part.reduce((sum, point) => sum + Number(point.value || 0), 0) });
+      result.push({ label: part.length > 1 ? `${part[0].label}–${part[part.length - 1].label}` : part[0].label,
+        value: part.reduce((sum, point) => sum + Number(point.value || 0), 0), partial: part.some(point => point.partial) });
     }
     return result;
   };
@@ -261,7 +304,7 @@
       if (maximum > 0) maximum += padding;
     }
     const { context, width, height } = fitCanvas(canvas);
-    const frame = chartFrame(context, width, height, minimum, maximum, rows.map((point) => point.label));
+    const frame = chartFrame(context, width, height, minimum, maximum, rows.map((point) => point.label), true);
     const zeroY = frame.y(0);
     context.strokeStyle = chartColors.text; context.lineWidth = 1;
     context.beginPath(); context.moveTo(frame.pad.left, zeroY); context.lineTo(width - frame.pad.right, zeroY); context.stroke();
@@ -272,8 +315,10 @@
       const top = frame.y(Math.max(0, value));
       const bottom = frame.y(Math.min(0, value));
       context.fillStyle = value < 0 ? chartColors.cost : chartColors.revenue;
+      context.globalAlpha = point.partial ? 0.45 : 1;
       context.fillRect(frame.pad.left + slot * index + (slot - barWidth) / 2, top, barWidth, Math.max(0, bottom - top));
     });
+    context.globalAlpha = 1;
   };
   const drawLines = (canvas, labels, datasets) => {
     if (!labels.length || !datasets.some((series) => series.values.some((value) => Number.isFinite(Number(value))))) return showChartEmpty(canvas, 'No hay valores para graficar en este intervalo.');
@@ -299,22 +344,24 @@
   };
   const drawEvolution = (canvas, points) => {
     if (!points.length) return showChartEmpty(canvas, 'No hay ventas confirmadas en este intervalo.');
-    drawLines(canvas, points.map((point) => point.label), [
-      { name: 'Ingresos', color: chartColors.revenue, values: points.map((point) => point.revenue) },
-      { name: 'Costo', color: chartColors.cost, values: points.map((point) => point.cost) },
-      { name: 'Ganancia bruta', color: chartColors.profit, values: points.map((point) => point.profit) },
+    const metrics = ['revenue', 'cost', 'profit'];
+    const series = metrics.flatMap(metric => [
+      { color: chartColors[metric], points: points.length === 1, values: points.map(point => point.partial ? null : point[metric]) },
+      { color: chartColors[metric], points: points.length === 1, dashed: true, values: points.map((point, index) =>
+        point.partial || points[index - 1]?.partial || points[index + 1]?.partial ? point[metric] : null) },
     ]);
+    drawLines(canvas, points.map(point => point.label), series);
   };
   const drawModels = (canvas, data) => {
     const labels = Array.isArray(data.labels) ? data.labels.slice() : [];
     const actual = Array.isArray(data.actual) ? data.actual.slice() : [];
-    if (!labels.length) return showChartEmpty(canvas, 'No hay ventas confirmadas en este intervalo.');
+    if (!labels.length) return showChartEmpty(canvas, 'No hay períodos completos para ajustar los modelos.');
     const forecastCount = Math.max((data.linear_forecast || []).length, (data.exponential_forecast || []).length);
     for (let i = 0; i < forecastCount; i += 1) labels.push(`P+${i + 1}`);
     const pad = (values) => [...values, ...new Array(Math.max(0, labels.length - values.length)).fill(null)];
-    const projection = (values) => {
+    const projection = (values, fitted) => {
       const result = new Array(labels.length).fill(null);
-      if (actual.length) result[actual.length - 1] = actual[actual.length - 1];
+      if (values.length && fitted.length) result[actual.length - 1] = fitted[fitted.length - 1];
       values.forEach((value, index) => { result[actual.length + index] = value; });
       return result;
     };
@@ -322,8 +369,8 @@
       { name: 'Histórico', color: chartColors.revenue, values: pad(actual), points: true },
       { name: 'Lineal', color: chartColors.linear, values: pad(data.linear || []) },
       { name: 'Exponencial', color: chartColors.exponential, values: pad(data.exponential || []) },
-      { name: 'Proyección lineal', color: chartColors.linear, values: projection(data.linear_forecast || []), dashed: true },
-      { name: 'Proyección exponencial', color: chartColors.exponential, values: projection(data.exponential_forecast || []), dashed: true },
+      { name: 'Proyección lineal', color: chartColors.linear, values: projection(data.linear_forecast || [], data.linear || []), dashed: true },
+      { name: 'Proyección exponencial', color: chartColors.exponential, values: projection(data.exponential_forecast || [], data.exponential || []), dashed: true },
     ]);
   };
   const renderAnalyticsCharts = () => chartCanvases.forEach((canvas) => {

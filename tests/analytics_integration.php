@@ -45,7 +45,10 @@ try{
     $assert($selectedProduct['trend']['product']['sku']===$selectedSku,'SKU elegido se conserva en la serie de tendencia');
     $assert(array_sum(array_column($selectedProduct['trend']['series'],'gross_profit_cents'))===(int)$expectedProductRow['revenue_cents']-(int)$expectedProductRow['cogs_cents'],'serie de ganancia bruta por producto coincide con SQL independiente');
     $assert((int)$selectedProduct['trend']['metrics']['units']===(int)$expectedProductRow['units'],'unidades de tendencia corresponden solo al SKU seleccionado');
-    $profitValues=array_map(static fn(array $point):int=>(int)$point['gross_profit_cents'],$selectedProduct['trend']['series']);
+    $training=$selectedProduct['trend']['model_series'];
+    $assert(!in_array(true,array_column($training,'partial'),true) && count($training)<count($selectedProduct['trend']['series']),
+        'los meses incompletos de los extremos permanecen visibles solo en la serie de ventas');
+    $profitValues=array_map(static fn(array $point):int=>(int)$point['gross_profit_cents'],$training);
     $expectedProfitModel=AnalyticsModels::linear($profitValues,3);
     $assert($selectedProduct['models']['linear']['available']===$expectedProfitModel['available'],'regresión lineal se ajusta a la serie de ganancia/pérdida del producto');
     if($expectedProfitModel['available'])$assert(abs((float)$selectedProduct['models']['linear']['slope']-(float)$expectedProfitModel['slope'])<1.0e-9,'pendiente lineal del producto coincide con la serie seleccionada');

@@ -36,123 +36,272 @@ final class ShopChat
         if ($message === '' || strlen($message) > self::MAX_MESSAGE_BYTES || preg_match('//u',$message)!==1) {
             $this->respond(400, ['ok'=>false,'message'=>'La consulta debe tener entre 1 y 2000 bytes y usar texto válido.']);
         }
+        $reference = $payload['product_context'] ?? null;
+        if (!is_string($reference) || !preg_match('/^[a-z0-9-]{1,120}$/D', $reference)) {
+            $reference = null;
+        }
         try {
-            $products=$this->catalog->chatProducts();
-            $answer=$this->answer($message,$products);
-            $this->respond(200, ['ok'=>true] + $answer);
+            $answer = $this->answer(new ShopChatQuery($message), $this->catalog->chatProducts(), $reference);
+            $this->respond(200, ['ok'=>true] + $answer + ['product_context'=>null]);
         } catch (Throwable $exception) {
             verdelia_log_error($exception,'shop-chat');
             $this->respond(503, ['ok'=>false,'message'=>'El asistente no está disponible temporalmente. Inténtalo nuevamente.']);
         }
     }
 
-    private function answer(string $message, array $products): array
+    private function answer(ShopChatQuery $query, array $products, ?string $reference): array
     {
-        $query=$this->normalize($message);
-        $isTrend=preg_match('/\b(ventas?|demanda|tendencia|proyeccion|estimacion|estimado|prevision)\b/u',$query)===1;
-        $light=$this->requestedLight($query);
-        $easy=preg_match('/\b(facil|faciles|sencilla|sencillo|principiante|principiantes|poco cuidado)\b/u',$query)===1;
-        $matches=($light!==null || $easy) && !$isTrend ? [] : $this->matchProducts($query,$products);
-        if ($isTrend) {
-            if (count($matches)!==1) {
-                return ['message'=>count($matches)>1 ? '¿De cuál producto quieres ver la tendencia? Escribe su nombre o SKU.' : 'Para consultar una tendencia de demanda, dime el nombre o SKU de un producto.'];
-            }
-            return $this->demandAnswer($matches[0]);
+        if ($query->petSafety) {
+            return ['message'=>'El catálogo no tiene información verificada sobre la seguridad de las plantas para mascotas. No puedo recomendarte una planta como segura. Verifica la especie con tu veterinario antes de elegir.'];
         }
-        if ($matches!==[]) {
-            if (count($matches)>1) {
-                return ['message'=>'Encontré varias coincidencias. ¿Cuál buscas: '.implode(', ',array_map(static fn(array $p):string=>$p['name'].' ('.$p['sku'].')',$matches)).'?'];
-            }
-            $product=$matches[0];
-            $stock=(int)$product['stock'];
-            $message=$product['name'].' ('.$product['sku'].') cuesta '.$this->money((int)$product['price_cents']).' USD. '.($stock>0?'Hay '.$stock.' unidades disponibles.':'Por ahora está agotado.');
-            return ['message'=>$message,'products'=>[$this->publicProduct($product)]];
+        if ($query->noLight) {
+            return ['message'=>'El catálogo no permite confirmar qué plantas toleran un espacio sin ventanas o sin luz natural. Si usas iluminación de cultivo, dime qué condiciones tienes para revisar qué indica el catálogo.'];
+        }
+        if ($query->conflictingLight) {
+            return ['message'=>'Mencionaste varias condiciones de luz. ¿Cuál tiene el lugar donde pondrás la planta: poca, indirecta, brillante o sol directo?'];
+        }
+        if ($query->unsupportedCurrency) {
+            return ['message'=>'El catálogo muestra los precios en dólares estadounidenses (USD). Indícame el importe en USD.'];
+        }
+        if ($query->budget === []) {
+            return ['message'=>'¿Cuál es tu presupuesto en USD? Puedes escribir «menos de $20», «hasta $20» o «entre $10 y $20».'];
+        }
+        if (preg_match('/\b(envios?|enviar|despachos?|delivery|flete)\b/u', $query->text)) {
+            return ['message'=>'El asistente no tiene información confirmada sobre tarifas o destinos de envío. Puedo consultar el precio y la disponibilidad de los productos.'];
+        }
+        if ($query->trend && $query->hasRecommendationCriteria()) {
+            return ['message'=>'Puedo estimar la demanda de un producto o recomendar plantas por sus condiciones. ¿Qué quieres consultar primero?'];
         }
 
-        if ($light!==null || $easy) return $this->recommend($products,$light,$easy);
-        return ['message'=>'Puedo ayudarte con precio y disponibilidad por nombre o SKU, recomendar plantas por luz (poca, indirecta/media o brillante/directa), sugerir opciones fáciles o mostrar una tendencia de demanda. Por ejemplo: «¿Hay Monstera?», «una planta para poca luz» o «ventas de PLA-006».'];
+        $excluded = array_column($this->matchProducts($query->excludedText, $products), 'id');
+        $products = array_values(array_filter($products, static fn(array $p): bool => !in_array($p['id'], $excluded, true)));
+        $matches = $this->matchProducts($query->productText, $products);
+        if ($matches === [] && $reference !== null && $query->followsKnownProduct()) {
+            foreach ($products as $product) {
+                if ($product['slug'] === $reference) {
+                    $matches = [$product];
+                    break;
+                }
+            }
+        }
+        if (count($matches) === 1) {
+            $product = $matches[0];
+            return $this->answerAboutProduct($query, $product) + ['product_context'=>(string)$product['slug']];
+        }
+        if (count($matches) > 1) {
+            if ($query->catalogIntent && !$query->trend && !$query->care && !$query->hasRecommendationCriteria()
+                && count($matches) <= 3 && preg_match('/\b(?:y|amb[oa]s|cada un[oa])\b/u', $query->productText)) {
+                return [
+                    'message'=>implode("\n", array_map(fn(array $p): string => $this->productSummary($p, $query->quantity), $matches)),
+                    'products'=>array_map([$this, 'publicProduct'], $matches),
+                ];
+            }
+            $names = array_map([$this, 'productLabel'], array_slice($matches, 0, 5));
+            return ['message'=>'Encontré varios productos. ¿Cuál quieres consultar? '.implode(', ', $names).'.'];
+        }
+        if ($query->trend) {
+            return $query->unsupportedHorizon ? $this->unsupportedForecast()
+                : ['message'=>'¿De qué producto quieres estimar la demanda? Dime su nombre o SKU.'];
+        }
+        if ($query->care && !$query->hasRecommendationCriteria()) return ['message'=>'¿Qué planta quieres cuidar? Dime el nombre o SKU para revisar qué indica su ficha.'];
+        if ($query->followsKnownProduct()) return ['message'=>'¿De qué producto? Dime su nombre o SKU para revisar el catálogo.'];
+        if ($query->hasRecommendationCriteria()) {
+            if ($query->catalogIntent && !$query->recommendation && $query->light === null && !$query->easy && !$query->noDirect) {
+                return ['message'=>'¿De qué producto quieres consultar el precio? Dime su nombre o SKU. Si quieres que busque plantas dentro del presupuesto, pídeme una recomendación.'];
+            }
+            return $this->recommend($products, $query);
+        }
+        if ($query->catalogIntent) {
+            $suggestion = $this->suggestProduct($query->productText, $products);
+            if ($suggestion !== null) {
+                return ['message'=>'¿Te refieres a '.$this->productLabel($suggestion).'? Escribe su nombre o SKU para confirmarlo.'];
+            }
+            return ['message'=>'No identifiqué el producto. Dime su nombre tal como aparece en el catálogo o su SKU.'];
+        }
+        if ($query->recommendation) return ['message'=>'¿Cómo es la luz donde pondrás la planta? También puedes indicar tu presupuesto o si buscas una de cuidado fácil.'];
+        return ['message'=>'Puedo consultar precios, existencias y fichas del catálogo, recomendar plantas según la luz y el presupuesto, o estimar su demanda. Por ejemplo: «¿Hay Monstera?», «una planta para poca luz» o «ventas de PLA-006».'];
     }
 
     private function matchProducts(string $query, array $products): array
     {
-        $nameQuery = $this->productWords($query);
-        $skuMatches = [];
-        $exactNames = [];
-        $partialNames = [];
+        if ($query === '') return [];
+        $specific = [];
+        $aliases = [];
+        $confirmedAliases = [];
         foreach ($products as $product) {
-            $sku = $this->normalize((string)$product['sku']);
-            if ($sku !== '' && str_contains(' '.$query.' ', ' '.$sku.' ')) {
-                $skuMatches[] = $product;
-            }
-
-            $fullName = $this->normalize((string)$product['name']);
-            $name = $this->productWords($fullName);
-            if ($query === $fullName || ($name !== '' && $nameQuery === $name)) {
-                $exactNames[] = $product;
-            } elseif (strlen($nameQuery) >= 3 && $name !== ''
-                && (str_contains(' '.$name.' ', ' '.$nameQuery.' ') || str_contains(' '.$nameQuery.' ', ' '.$name.' '))) {
-                $partialNames[] = $product;
+            $sku = ShopChatQuery::normalize((string)$product['sku']);
+            $name = ShopChatQuery::normalize((string)$product['name']);
+            $alias = explode(' ', $name, 2)[0];
+            $scientific = ShopChatQuery::normalize((string)($product['scientific_name'] ?? ''));
+            if (($sku !== '' && str_contains(' '.$query.' ', ' '.$sku.' ')) || $this->mentions($query, $name)
+                || ($scientific !== '' && $this->mentions($query, $scientific))) {
+                $specific[] = $product;
+                $confirmedAliases[$alias] = true;
+            } elseif (strlen($alias) >= 4 && !in_array($alias, ['planta', 'producto', 'articulo'], true) && $this->mentions($query, $alias)) {
+                $aliases[$alias][] = $product;
             }
         }
-
-        return $skuMatches ?: ($exactNames ?: $partialNames);
-    }
-
-    private function productWords(string $text): string
-    {
-        $words = preg_replace('/\b(cuanto cuesta|cuanto|cual|cuales|es|la|los|las|que|plantas?|son|cuidar|facil|faciles|precio|disponibilidad|disponible|stock|hay|tienen|tiene|consulta|consultar|busco|quiero|por favor|ventas?|demanda|tendencia|proyeccion|estimacion|estimado|prevision|sku|de|del|el|una|un|producto|unidades)\b/u', ' ', $text) ?? $text;
-        return trim(preg_replace('/\s+/u', ' ', $words) ?? $words);
-    }
-
-    private function recommend(array $products, ?string $light, bool $easy): array
-    {
-        $ranked=[];
-        foreach ($products as $product) {
-            $category=$this->normalize((string)$product['category'].' '.(string)$product['category_name']);
-            if ((int)$product['stock']<1 || preg_match('/\b(accesorio|accesorios|maceta|macetas)\b/u',$category)===1) continue;
-            if ($easy && $this->normalize((string)$product['care_level'])!=='facil') continue;
-            $lightText=$this->normalize((string)$product['light']);
-            $score=$light===null ? 1.0 : $this->lightMembership($lightText,$light);
-            if ($score<=0.0) continue;
-            $ranked[]=['score'=>$score,'product'=>$product];
+        foreach (array_diff_key($aliases, $confirmedAliases) as $group) {
+            array_push($specific, ...$group);
         }
-        usort($ranked,static fn(array $a,array $b):int=>($b['score']<=>$a['score']) ?: strcmp((string)$a['product']['name'],(string)$b['product']['name']));
-        $ranked=array_slice($ranked,0,3);
-        if ($ranked===[]) return ['message'=>'No encontré plantas activas y disponibles con esos criterios. Puedes probar otra condición de luz o cuidado.'];
-        $names=[]; $results=[];
+        return $specific;
+    }
+
+    private function mentions(string $query, string $name): bool
+    {
+        if ($name === '') return false;
+        $pattern = array_map(static function (string $word): string {
+            $plural = strlen($word) >= 4 && ctype_alpha($word) && !in_array(substr($word, -1), ['s', 'x'], true);
+            return preg_quote($word, '/') . ($plural ? '(?:s|es)?' : '');
+        }, explode(' ', $name));
+        return preg_match('/(?:^|\s)'.implode('\s+', $pattern).'(?:\s|$)/u', $query) === 1;
+    }
+
+    private function suggestProduct(string $query, array $products): ?array
+    {
+        $words = array_unique(explode(' ', $query));
+        $best = PHP_INT_MAX;
+        $candidates = [];
+        foreach ($products as $product) {
+            $alias = explode(' ', ShopChatQuery::normalize((string)$product['name']), 2)[0];
+            if (strlen($alias) < 5) continue;
+            foreach ($words as $word) {
+                if (strlen($word) < 5) continue;
+                $distance = levenshtein($word, $alias);
+                if ($distance > $best || $distance > (strlen($alias) >= 8 ? 2 : 1)) continue;
+                if ($distance < $best) $candidates = [];
+                $best = $distance;
+                $candidates[(int)$product['id']] = $product;
+            }
+        }
+        return count($candidates) === 1 ? reset($candidates) : null;
+    }
+
+    private function answerAboutProduct(ShopChatQuery $query, array $product): array
+    {
+        if ($query->trend) {
+            if ($query->unsupportedHorizon) return $this->unsupportedForecast();
+            $answer = $this->demandAnswer($product);
+            if ($query->nextCalendarMonth) {
+                $answer['message'] = 'La estimación disponible corresponde al mes en curso, que es el primero posterior al historial cerrado. No tengo una proyección para el mes que viene. '.$answer['message'];
+            }
+            return $answer;
+        }
+        if (preg_match('/\bcomo (?:llegaron|calcularon) a ese numero\b/u', $query->text)) {
+            return ['message'=>'Si te refieres al pronóstico, la regresión ajusta una línea a las ventas confirmadas de los últimos seis meses completos y estima el primer mes posterior. Requiere ventas en al menos tres de esos meses. El precio y las existencias vienen del catálogo.'];
+        }
+
+        $facts = [];
+        if ($query->care || $query->light !== null || $query->noDirect || $query->easy) {
+            $facts[] = $this->productLabel($product).'.';
+            $light = (string)$product['light'];
+            $care = (string)$product['care_level'];
+            if ($light !== '') $facts[] = 'La ficha indica «'.$light.'».';
+            if ($care !== '') $facts[] = 'Nivel de cuidado: '.$care.'.';
+            if (($query->light !== null || $query->noDirect) && $this->lightScore($product, $query) <= 0) {
+                $facts[] = 'La ficha no confirma que sea adecuada para la condición de luz que pediste.';
+            }
+            if ($query->easy && ShopChatQuery::normalize($care) !== 'facil') {
+                $facts[] = 'La ficha no la clasifica como una opción de cuidado fácil.';
+            }
+            if ($query->watering) {
+                $facts[] = 'La ficha no especifica la frecuencia de riego.';
+            } elseif ($light === '' && $care === '') {
+                $facts[] = 'La ficha no incluye indicaciones de cuidado.';
+            }
+        }
+        if ($query->budget !== null) {
+            $relation = $this->fitsBudget($product, $query->budget) ? 'Está dentro de tu presupuesto.' : 'Queda fuera de tu presupuesto.';
+            $facts[] = $this->productSummary($product, $query->quantity).' '.$relation;
+        } elseif ($query->catalogIntent || $facts === []) {
+            $facts[] = $this->productSummary($product, $query->quantity);
+        }
+        return ['message'=>implode(' ', $facts), 'products'=>[$this->publicProduct($product)]];
+    }
+
+    private function unsupportedForecast(): array
+    {
+        return ['message'=>'Solo puedo estimar un mes: el primero después de los seis meses completos que usa el modelo. La proyección no cubre el período que pediste.'];
+    }
+
+    private function productLabel(array $product): string
+    {
+        return $product['name'].' ('.$product['sku'].')';
+    }
+
+    private function productSummary(array $product, ?int $quantity): string
+    {
+        $stock = (int)$product['stock'];
+        $availability = match (true) {
+            $stock <= 0 => 'Por ahora está agotado.',
+            $stock === 1 => 'Hay 1 unidad disponible.',
+            default => 'Hay '.$stock.' unidades disponibles.',
+        };
+        if ($quantity !== null && $quantity > 0) {
+            $units = $quantity === 1 ? '1 unidad' : $quantity.' unidades';
+            $availability .= $stock >= $quantity ? ' Sí hay '.$units.' para tu consulta.' : ' No hay '.$units.' disponibles.';
+        }
+        return $this->productLabel($product).' cuesta '.$this->money((int)$product['price_cents']).' USD. '.$availability;
+    }
+
+    private function fitsBudget(array $product, array $budget): bool
+    {
+        $price = (int)$product['price_cents'];
+        return $price >= ($budget['min'] ?? 0) && $price <= ($budget['max'] ?? PHP_INT_MAX);
+    }
+
+    private function recommend(array $products, ShopChatQuery $query): array
+    {
+        $ranked = [];
+        foreach ($products as $product) {
+            $category = ShopChatQuery::normalize($product['category'].' '.$product['category_name']);
+            if ((int)$product['stock'] < max(1, $query->quantity ?? 0) || preg_match('/\b(accesorios?|macetas?)\b/u', $category)) continue;
+            if ($query->easy && ShopChatQuery::normalize((string)$product['care_level']) !== 'facil') continue;
+            if ($query->budget !== null && !$this->fitsBudget($product, $query->budget)) continue;
+            $score = $this->lightScore($product, $query);
+            if ($score > 0) $ranked[] = ['score'=>$score, 'product'=>$product];
+        }
+        usort($ranked, static fn(array $a, array $b): int => ($b['score'] <=> $a['score']) ?: strcmp($a['product']['name'], $b['product']['name']));
+        $ranked = array_slice($ranked, 0, 3);
+        if ($ranked === []) return ['message'=>'No encontré plantas disponibles que cumplan todos los criterios que indicaste.'];
+        $names = [];
+        $results = [];
         foreach ($ranked as $item) {
-            $product=$item['product'];
-            $detail=(string)$product['name'].' ('.$product['sku'].'): la ficha indica «'.((string)$product['light'] ?: 'luz no especificada').'»';
-            if ($easy) $detail.=' y cuidado '.strtolower((string)$product['care_level']);
-            $names[]=$detail.'.'; $results[]=$this->publicProduct($product);
+            $product = $item['product'];
+            $detail = $this->productLabel($product).'. La ficha indica «'.($product['light'] ?: 'luz no especificada').'».';
+            if ($query->easy) $detail .= ' Cuidado fácil.';
+            if ($query->budget !== null) $detail .= ' Precio: '.$this->money((int)$product['price_cents']).' USD.';
+            $names[] = $detail;
+            $results[] = $this->publicProduct($product);
         }
-        $target=$light===null?'con cuidado fácil':$this->lightLabel($light).($easy?' y cuidado fácil':'');
-        return ['message'=>'Para '.$target.' encontré estas opciones disponibles: '.implode(' ',$names),'products'=>$results];
+        $criteria = [];
+        if ($query->light !== null) $criteria[] = ['low'=>'poca luz', 'medium'=>'luz indirecta o media', 'bright'=>'luz brillante', 'direct'=>'sol directo'][$query->light];
+        if ($query->noDirect) $criteria[] = 'sin sol directo';
+        if ($query->easy) $criteria[] = 'de cuidado fácil';
+        if ($query->budget !== null) $criteria[] = 'dentro de tu presupuesto';
+        if ($query->quantity !== null && $query->quantity > 1) $criteria[] = 'con al menos '.$query->quantity.' unidades disponibles';
+        return ['message'=>'Encontré estas opciones ('.implode(', ', $criteria)."):\n".implode("\n", $names), 'products'=>$results];
     }
 
-    private function lightMembership(string $value, string $requested): float
+    private function lightScore(array $product, ShopChatQuery $query): float
     {
-        $direct=preg_match('/\bdirecta\b/u',$value)===1;
-        $indirect=preg_match('/\bindirecta\b/u',$value)===1;
-        $bright=preg_match('/\bbrillante\b/u',$value)===1;
-        $low=preg_match('/\b(baja|poca)\b/u',$value)===1;
-        $medium=preg_match('/\bmedia\b/u',$value)===1;
-        if ($direct) return $requested==='bright' ? 1.0 : 0.0;
-        if ($low && $medium) return $requested==='low' ? 0.9 : ($requested==='medium' ? 0.8 : 0.0);
-        if ($low) return $requested==='low' ? 1.0 : ($requested==='medium' ? 0.25 : 0.0);
-        if ($indirect && $bright) return $requested==='medium' ? 0.9 : ($requested==='bright' ? 0.65 : 0.0);
-        if ($indirect) return $requested==='medium' ? 1.0 : ($requested==='low' ? 0.2 : 0.0);
-        if ($bright) return $requested==='bright' ? 0.9 : ($requested==='medium' ? 0.3 : 0.0);
-        if ($medium) return $requested==='medium' ? 0.9 : ($requested==='low' ? 0.25 : 0.0);
-        return 0.0;
-    }
-
-    private function requestedLight(string $query): ?string
-    {
-        if (preg_match('/\b(poca luz|poco luminosa|luz baja|baja luminosidad)\b/u',$query)===1) return 'low';
-        if (preg_match('/\b(luz indirecta|indirecta|luz media|luz moderada|media luminosidad)\b/u',$query)===1) return 'medium';
-        if (preg_match('/\b(luz brillante|brillante|luz directa|directa|sol directo|muy luminosa)\b/u',$query)===1) return 'bright';
-        return null;
+        $value = ShopChatQuery::normalize((string)$product['light']);
+        $exclusion = '/\b(?:sin|evitar|evita|no tolera)\s+(?:la\s+|el\s+)?(?:luz directa|sol(?: directo)?)\b/u';
+        $withoutDirect = preg_match($exclusion, $value) === 1;
+        $positive = preg_replace($exclusion, ' ', $value) ?? $value;
+        $direct = preg_match('/\b(directa|sol directo|pleno sol)\b/u', $positive) === 1;
+        $indirect = preg_match('/\bindirecta\b/u', $positive) === 1;
+        $bright = preg_match('/\b(brillante|luminosa)\b/u', $positive) === 1;
+        $low = preg_match('/\b(baja|poca)\b/u', $positive) === 1;
+        $medium = preg_match('/\b(media|moderada)\b/u', $positive) === 1;
+        if ($query->noDirect && ($direct || !($withoutDirect || $indirect || $low || $medium))) return 0.0;
+        return match ($query->light) {
+            'direct' => $direct && !$withoutDirect ? 1.0 : 0.0,
+            'low' => $low && !$direct ? ($medium ? 0.9 : 1.0) : 0.0,
+            'medium' => $direct ? 0.0 : ($indirect ? ($bright ? 0.9 : 1.0) : ($medium ? 0.8 : 0.0)),
+            'bright' => $bright ? ($indirect ? 0.9 : 1.0) : 0.0,
+            default => $query->noDirect && $indirect ? 1.1 : 1.0,
+        };
     }
 
     private function demandAnswer(array $product): array
@@ -179,7 +328,7 @@ final class ShopChat
         $direction=abs($slope)<0.05?'se mantuvo aproximadamente estable':($slope>0?'mostró una tendencia ascendente':'mostró una tendencia descendente');
         $engine=($model['engine']??'php')==='python'?'Python':'PHP';
         return [
-            'message'=>'Tendencia de demanda de '.$product['name'].' ('.$product['sku'].'): '.$direction.' entre '.$labels[0].' y '.end($labels).'. La regresión lineal estima '.number_format($forecast,0,',','.').' unidades para el mes siguiente ('.$now->format('m/Y').'). Es una estimación de demostración basada en ventas confirmadas; no es una garantía. Motor: '.$engine.'.',
+            'message'=>'Tendencia de demanda de '.$product['name'].' ('.$product['sku'].'): '.$direction.' entre '.$labels[0].' y '.end($labels).'. La regresión lineal estima '.number_format($forecast,0,',','.').' unidades para el primer mes posterior al historial ('.$now->format('m/Y').'). Es una estimación basada en el historial de pedidos con pago simulado aprobado. Motor: '.$engine.'.',
             'engine'=>strtolower($engine),
         ];
     }
@@ -187,19 +336,6 @@ final class ShopChat
     private function publicProduct(array $product): array
     {
         return ['name'=>(string)$product['name'],'url'=>'/producto/'.rawurlencode((string)$product['slug'])];
-    }
-
-    private function normalize(string $value): string
-    {
-        $value=lowercase($value);
-        $value=strtr($value,['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ü'=>'u','ñ'=>'n']);
-        $value=preg_replace('/[^a-z0-9\-\s]/u',' ',$value) ?? $value;
-        return trim(preg_replace('/\s+/u',' ',$value) ?? $value);
-    }
-
-    private function lightLabel(string $light): string
-    {
-        return ['low'=>'poca luz','medium'=>'luz indirecta o media','bright'=>'luz brillante o directa'][$light]??'esa luz';
     }
 
     private function money(int $cents): string

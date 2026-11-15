@@ -30,6 +30,10 @@ try {
     $check = $pdo->prepare('SELECT COUNT(*) FROM schema_versions WHERE version = ?');
     $check->execute([$version]);
     if ((int)$check->fetchColumn() === 0) {
+        $existingData = (int)$pdo->query('SELECT (SELECT COUNT(*) FROM products) + (SELECT COUNT(*) FROM users) + (SELECT COUNT(*) FROM orders)')->fetchColumn();
+        if ($existingData > 0) {
+            throw new RuntimeException('La base ya contiene datos sin la marca de inicialización. Restaura el respaldo completo o usa una base vacía para la carga inicial.');
+        }
         $pdo->beginTransaction();
         $categories = [
             ['interior', 'Plantas de interior'], ['suculentas', 'Suculentas y cactus'],
@@ -46,27 +50,36 @@ try {
         $customerHash = password_hash('VerdeliaCliente2026!', PASSWORD_BCRYPT);
         $ustmt = $pdo->prepare('INSERT INTO users(name,email,password_hash,role) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE email=VALUES(email)');
         $ustmt->execute(['Admin Verdelia','admin@verdelia.test',$adminHash,'ADMIN']);
-        $ustmt->execute(['Cliente Demo','cliente@verdelia.test',$customerHash,'CUSTOMER']);
-        $userId = (int)$pdo->query("SELECT id FROM users WHERE email = 'cliente@verdelia.test'")->fetchColumn();
-        $catalog = $pdo->query('SELECT p.id,p.sku,p.name,p.price_cents,p.cost_cents,c.name AS category_name FROM products p JOIN categories c ON c.id=p.category_id ORDER BY p.sku')->fetchAll();
-        $orderStmt = $pdo->prepare('INSERT INTO orders(order_number,user_id,status,subtotal_cents,shipping_cents,total_cents,delivery_address,is_demo,created_at,confirmed_at) VALUES(?,?,?,?,?,?,?,?,?,?)');
-        $lineStmt = $pdo->prepare('INSERT INTO order_items(order_id,product_id,sku_snapshot,name_snapshot,category_name_snapshot,unit_price_cents,unit_cost_cents,quantity,line_total_cents) VALUES(?,?,?,?,?,?,?,?,?)');
-        $payStmt = $pdo->prepare('INSERT INTO payments(order_id,status,fake_reference,created_at) VALUES(?,?,?,?)');
-        // El historial demo no descuenta del inventario disponible actual.
-        $start = new DateTimeImmutable('2026-05-01 12:00:00');
-        for ($i = 1; $i <= 96; $i++) {
-            $product = $catalog[($i * 7) % count($catalog)];
-            $qty = 1 + ($i % 3);
-            $subtotal = (int)$product['price_cents'] * $qty;
-            $status = ($i % 17 === 0) ? 'CANCELLED' : (($i % 11 === 0) ? 'FULFILLED' : 'PAID');
-            $date = $start->modify('+' . ($i * 45) . ' hours')->format('Y-m-d H:i:s');
-            $confirmed = $status === 'CANCELLED' ? null : $date;
-            $orderStmt->execute([sprintf('DEMO-%05d',$i),$userId,$status,$subtotal,0,$subtotal,'Dirección ficticia de demostración',1,$date,$confirmed]);
-            $orderId = (int)$pdo->lastInsertId();
-            $lineStmt->execute([$orderId,$product['id'],$product['sku'],$product['name'],$product['category_name'],$product['price_cents'],$product['cost_cents'],$qty,$subtotal]);
-            $payStmt->execute([$orderId,$status === 'CANCELLED' ? 'REJECTED' : 'APPROVED',sprintf('SIM-DEMO-%05d',$i),$date]);
+        $ustmt->execute(['Cliente Verdelia','cliente@verdelia.test',$customerHash,'CUSTOMER']);
+        $customerEmails = ['cliente@verdelia.test'];
+        foreach (['Camila Rojas', 'Diego Torres', 'Elena Silva', 'Mariana Acosta', 'Nicolás Vega', 'Lucía Méndez'] as $index => $name) {
+            $email = 'cliente-'.($index + 1).'@verdelia.test';
+            $ustmt->execute([$name, $email, password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT), 'CUSTOMER']);
+            $customerEmails[] = $email;
         }
+        $sampleUsers = $pdo->prepare('SELECT id,name,email FROM users WHERE role=\'CUSTOMER\' AND email IN ('.implode(',', array_fill(0, count($customerEmails), '?')).') ORDER BY id');
+        $sampleUsers->execute($customerEmails);
+        $customers = $sampleUsers->fetchAll();
+        $catalog = $pdo->query('SELECT p.id,p.sku,p.name,p.price_cents,p.cost_cents,c.name AS category_name FROM products p JOIN categories c ON c.id=p.category_id ORDER BY p.sku')->fetchAll();
+        require_once __DIR__.'/sales-seed.php';
+        verdelia_seed_sales($pdo, $catalog, $customers, new DateTimeImmutable('now'));
+        $pdo->prepare('INSERT INTO schema_versions(version) VALUES(?)')->execute(['sales_sample_v2']);
         $pdo->prepare('INSERT INTO schema_versions(version) VALUES(?)')->execute([$version]);
+        $pdo->commit();
+    }
+
+    // Replace only the original sample labels, preserving user-edited values and order references.
+    $labelVersion = 'sample_labels_v1';
+    $check->execute([$labelVersion]);
+    if ((int)$check->fetchColumn() === 0) {
+        $pdo->beginTransaction();
+        $sampleAccount = $pdo->prepare("UPDATE users SET name=? WHERE email='cliente@verdelia.test' AND role='CUSTOMER' AND BINARY name=?");
+        $sampleAccount->execute(['Cliente Verdelia', 'Cliente Demo']);
+        $sampleAddress = $pdo->prepare("UPDATE orders o JOIN users u ON u.id=o.user_id
+            SET o.delivery_address=? WHERE u.email='cliente@verdelia.test' AND o.is_demo=1
+            AND o.order_number REGEXP '^DEMO-[0-9]{5}$' AND BINARY o.delivery_address=?");
+        $sampleAddress->execute(['Dirección no registrada', 'Dirección ficticia de demostración']);
+        $pdo->prepare('INSERT INTO schema_versions(version) VALUES(?) ON DUPLICATE KEY UPDATE version=VALUES(version)')->execute([$labelVersion]);
         $pdo->commit();
     }
 

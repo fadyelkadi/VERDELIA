@@ -29,6 +29,15 @@ $request = static function (CurlHandle $handle, string $method, string $path, ?a
     $headers = ['Accept: text/html, application/json'];
     if ($csrf !== null) $headers[] = 'X-CSRF-Token: ' . $csrf;
     $options = [CURLOPT_URL=>$baseUrl . $path,CURLOPT_HTTPHEADER=>$headers,CURLOPT_HTTPGET=>$method === 'GET',CURLOPT_POST=>false];
+    $responseHeaders = [];
+    $options[CURLOPT_HEADERFUNCTION] = static function (CurlHandle $handle, string $line) use (&$responseHeaders): int {
+        if (str_starts_with($line, 'HTTP/')) $responseHeaders = [];
+        if (str_contains($line, ':')) {
+            [$name, $value] = explode(':', $line, 2);
+            $responseHeaders[strtolower($name)] = trim($value);
+        }
+        return strlen($line);
+    };
     if ($method === 'POST') {
         $options[CURLOPT_HTTPGET] = false;
         $options[CURLOPT_POST] = true;
@@ -41,7 +50,7 @@ $request = static function (CurlHandle $handle, string $method, string $path, ?a
     curl_setopt_array($handle, $options);
     $body = curl_exec($handle);
     if (!is_string($body)) throw new RuntimeException('HTTP local falló: ' . curl_error($handle));
-    return ['status'=>(int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE),'body'=>$body,'url'=>(string)curl_getinfo($handle, CURLINFO_EFFECTIVE_URL)];
+    return ['status'=>(int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE),'body'=>$body,'url'=>(string)curl_getinfo($handle, CURLINFO_EFFECTIVE_URL),'headers'=>$responseHeaders];
 };
 $csrfFrom = static function (string $html): string {
     if (preg_match('/<meta name="csrf-token" content="([a-f0-9]{64})"/', $html, $match) !== 1) throw new RuntimeException('La página no incluyó token CSRF.');
@@ -75,6 +84,17 @@ try {
 
     $empty = $api($clientA);
     $assert($empty['status'] === 200 && $empty['json']['items'] === [], 'GET API responde carrito invitado vacío: ' . $empty['status'] . ' ' . json_encode($empty['json']));
+    $notFound = $request($clientA, 'GET', '/ruta-de-prueba-inexistente');
+    $assert($notFound['status'] === 404, 'respuesta 404 real');
+    foreach ([$page, $empty, $notFound] as $response) {
+        $headers = $response['headers'];
+        $csp = $headers['content-security-policy'] ?? '';
+        $assert(str_contains($csp, "frame-ancestors 'none'") && str_contains($csp, "script-src 'self'")
+            && !str_contains($csp, 'unsafe-inline') && ($headers['x-frame-options'] ?? '') === 'DENY'
+            && ($headers['x-content-type-options'] ?? '') === 'nosniff' && !isset($headers['x-powered-by'])
+            && str_contains($headers['cache-control'] ?? '', 'no-store'), 'cabeceras comunes en ruta HTTP '.$response['status']);
+    }
+    $assert(($empty['headers']['x-robots-tag'] ?? '') === 'noindex', 'la API indica que no debe indexarse');
     $blocked = $api($clientA,['action'=>'add','sku'=>'PLA-001','quantity'=>1],null);
     $assert($blocked['status'] === 419, 'API rechaza mutaciones sin CSRF');
 
@@ -99,9 +119,9 @@ try {
 
     $api($clientA,['action'=>'add','sku'=>'PLA-001','quantity'=>2],$csrf);
     $csrf = $csrfFrom($request($clientA,'GET','/registro')['body']);
-    $csrfDenied = $request($clientA,'POST','/registro',['name'=>'Sin token','email'=>$emailA,'password'=>$password,'password_confirmation'=>$password,'academic_demo'=>'1']);
+    $csrfDenied = $request($clientA,'POST','/registro',['name'=>'Sin token','email'=>$emailA,'password'=>$password,'password_confirmation'=>$password]);
     $assert($csrfDenied['status'] === 419, 'registro también exige CSRF');
-    $registered = $request($clientA,'POST','/registro',['csrf_token'=>$csrf,'name'=>'Cliente temporal Fase 4','email'=>$emailA,'password'=>$password,'password_confirmation'=>$password,'academic_demo'=>'1','role'=>'ADMIN']);
+    $registered = $request($clientA,'POST','/registro',['csrf_token'=>$csrf,'name'=>'Cliente temporal Fase 4','email'=>$emailA,'password'=>$password,'password_confirmation'=>$password,'role'=>'ADMIN']);
     $assert($registered['status'] === 200 && str_contains($registered['body'],'Mi cuenta'), 'registro real inicia sesión como cliente');
     $persisted = $api($clientA);
     $assert(($persisted['json']['unit_count'] ?? 0) === 2 && ($persisted['json']['items'][0]['sku'] ?? '') === 'PLA-001', 'registro fusiona y persiste el carrito visitante');
@@ -142,7 +162,7 @@ try {
     $assert(($afterLogin['json']['unit_count'] ?? 0) === 2, 'carrito autenticado persiste al iniciar sesión de nuevo');
 
     $csrfB = $csrfFrom($request($clientB,'GET','/registro')['body']);
-    $registeredB = $request($clientB,'POST','/registro',['csrf_token'=>$csrfB,'name'=>'Cliente aislado Fase 4','email'=>$emailB,'password'=>$password,'password_confirmation'=>$password,'academic_demo'=>'1']);
+    $registeredB = $request($clientB,'POST','/registro',['csrf_token'=>$csrfB,'name'=>'Cliente aislado Fase 4','email'=>$emailB,'password'=>$password,'password_confirmation'=>$password]);
     $assert($registeredB['status'] === 200, 'segundo cliente temporal registrado');
     $isolated = $api($clientB);
     $assert($isolated['json']['items'] === [], 'el carrito del segundo cliente está aislado');

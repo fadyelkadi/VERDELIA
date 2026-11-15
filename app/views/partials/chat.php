@@ -25,7 +25,6 @@
         <span aria-hidden="true">↑</span>
       </button>
     </form>
-    <p class="store-chat-footnote">Orientación sobre el catálogo de demostración.</p>
   </div>
   <button class="store-chat-toggle" type="button" data-chat-toggle aria-expanded="false" aria-controls="store-chat-panel" aria-label="Abrir asistente de VERDELIA">
     <span class="store-chat-toggle-icon" aria-hidden="true">✳</span>

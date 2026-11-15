@@ -7,7 +7,7 @@ $storeData=json_encode(array_map(static fn(array $p): array => ['sku'=>$p['sku']
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f8f6f0">
-  <meta name="description" content="VERDELIA: plantas, macetas y pequeños espacios verdes. Una colección ficticia de demostración académica.">
+  <meta name="description" content="Descubre la colección de plantas, macetas y accesorios de VERDELIA. Encuentra opciones para la luz y el espacio de tu casa.">
   <meta name="csrf-token" content="<?= h(verdelia_csrf_token()) ?>">
   <title><?= h($pageTitle) ?> · VERDELIA</title>
   <link rel="icon" href="/assets/images/brand/favicon.svg" type="image/svg+xml">
@@ -19,14 +19,13 @@ $storeData=json_encode(array_map(static fn(array $p): array => ['sku'=>$p['sku']
 </head>
 <body data-page="<?= h($route) ?>">
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
-  <div class="demo-ribbon"><span class="demo-dot"></span> Demostración académica · catálogo e importes ficticios</div>
   <?php require __DIR__ . '/partials/header.php'; ?>
   <main id="contenido" tabindex="-1">
     <?php require $viewPath; ?>
   </main>
   <?php require __DIR__ . '/partials/footer.php'; ?>
   <div class="toast" role="status" aria-live="polite" data-toast></div>
-  <script>window.VERDELIA_PRODUCTS = <?= $storeData ?: '[]' ?>;</script>
+  <template id="verdelia-products"><?= h($storeData ?: '[]') ?></template>
   <?php if ($route !== 'admin' && !isset($adminSection) && $route !== 'order' && empty($isReceipt)): ?>
     <?php require __DIR__ . '/partials/chat.php'; ?>
     <script defer src="/assets/js/chat.js"></script>

@@ -12,7 +12,6 @@ $featured=$products;
   </div>
   <div class="hero-visual">
     <span class="hero-orbit orbit-one"></span><span class="hero-orbit orbit-two"></span>
-    <div class="hero-caption"><span>01 / 04</span><span>Follaje para cada rincón</span></div>
     <img src="/assets/images/products/PLA-006-monstera.png" alt="Monstera deliciosa en maceta, imagen botánica ilustrativa generada con IA" width="900" height="900" fetchpriority="high">
     <div class="hero-stamp"><span>CRECE A TU<br>MANERA</span><?= icon('leaf', 22) ?></div>
   </div>
@@ -34,7 +33,7 @@ $featured=$products;
 </section>
 
 <section class="section-block featured-section page-gutter">
-  <div class="section-heading section-heading-split"><div><p class="eyebrow">Para empezar con calma</p><h2>Favoritas de la casa.</h2></div><p class="section-aside">Una selección botánica de demostración,<br>pensada para distintos niveles de luz.</p></div>
+  <div class="section-heading section-heading-split"><div><p class="eyebrow">Para empezar con calma</p><h2>Favoritas de la casa.</h2></div><p class="section-aside">Una selección botánica pensada<br>para distintos niveles de luz.</p></div>
   <div class="product-grid product-grid-featured">
     <?php foreach ($featured as $card) require __DIR__ . '/../partials/product-card.php'; ?>
   </div>
@@ -42,7 +41,7 @@ $featured=$products;
 
 <section class="care-feature page-gutter">
   <div class="care-art"><span class="care-sun"></span><img src="/assets/images/products/PLA-008-ficus-lyrata.png" alt="Ficus lyrata ilustrativo en maceta clara" loading="lazy" width="640" height="700"></div>
-  <div class="care-copy"><p class="eyebrow">Un poco de cuidado</p><h2>Deja que cada hoja<br>encuentre su <em>luz.</em></h2><p>Elegir un rincón luminoso, mirar la tierra y regar con calma: a veces, cuidar una planta empieza con gestos muy sencillos.</p><a class="button button-outline" href="/preguntas-frecuentes">Ideas para cuidar <?= icon('arrow', 17) ?></a><span class="care-note">Contenido orientativo para esta demostración.</span></div>
+  <div class="care-copy"><p class="eyebrow">Un poco de cuidado</p><h2>Deja que cada hoja<br>encuentre su <em>luz.</em></h2><p>Elegir un rincón luminoso, mirar la tierra y regar con calma: a veces, cuidar una planta empieza con gestos muy sencillos.</p><a class="button button-outline" href="/preguntas-frecuentes">Ideas para cuidar <?= icon('arrow', 17) ?></a></div>
 </section>
 
 <section class="story-band page-gutter">
@@ -51,4 +50,4 @@ $featured=$products;
   <a class="text-link" href="/nosotros">Conoce nuestra historia <?= icon('arrow', 16) ?></a>
 </section>
 
-<section class="closing-cta page-gutter"><p class="eyebrow">Tu próximo rincón verde</p><h2>Empieza por algo<br><em>que te haga bien.</em></h2><a class="button button-light" href="/tienda">Ver la colección <?= icon('arrow', 17) ?></a><span>Productos e importes ficticios · sin ventas reales</span></section>
+<section class="closing-cta page-gutter"><p class="eyebrow">Tu próximo rincón verde</p><h2>Empieza por algo<br><em>que te haga bien.</em></h2><a class="button button-light" href="/tienda">Ver la colección <?= icon('arrow', 17) ?></a></section>

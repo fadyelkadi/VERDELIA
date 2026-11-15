@@ -64,8 +64,8 @@ final class CheckoutController
         if (strlen($delivery['name']) < 2) $errors['name'] = 'Escribe el nombre de quien recibirá el pedido.';
         if (filter_var($delivery['email'], FILTER_VALIDATE_EMAIL) === false) $errors['email'] = 'Escribe un correo válido.';
         $phoneDigits = preg_replace('/\D+/', '', $delivery['phone']) ?? '';
-        if (strlen($phoneDigits) < 7 || preg_match('/^[0-9+() .-]{7,40}$/', $delivery['phone']) !== 1) $errors['phone'] = 'Escribe un teléfono válido de demostración.';
-        if (strlen($delivery['address']) < 5) $errors['address'] = 'Indica una dirección de entrega ficticia.';
+        if (strlen($phoneDigits) < 7 || preg_match('/^[0-9+() .-]{7,40}$/', $delivery['phone']) !== 1) $errors['phone'] = 'Escribe un teléfono válido.';
+        if (strlen($delivery['address']) < 5) $errors['address'] = 'Indica una dirección de entrega válida.';
         if (strlen($delivery['city']) < 2) $errors['city'] = 'Escribe la ciudad.';
         if (strlen($delivery['state']) < 2) $errors['state'] = 'Escribe el estado o provincia.';
         if ($delivery['postal_code'] !== '' && preg_match('/^[A-Za-z0-9 -]{3,20}$/', $delivery['postal_code']) !== 1) $errors['postal_code'] = 'Revisa el código postal.';
@@ -88,7 +88,7 @@ final class CheckoutController
                 unset($_SESSION['checkout_order_key']);
                 $destination = '/pedido/' . rawurlencode($result['order_number']) . '?resultado=cancelado';
             } else {
-                verdelia_set_flash(['type'=>'error','message'=>'El pago de demostración fue rechazado. No se descontó inventario; puedes intentarlo de nuevo.']);
+                verdelia_set_flash(['type'=>'error','message'=>'El simulador rechazó el pago. No se descontó inventario; puedes intentarlo de nuevo.']);
                 $destination = '/pedido/' . rawurlencode($result['order_number']) . '?resultado=rechazado';
             }
             header('Location: ' . $destination, true, 303);

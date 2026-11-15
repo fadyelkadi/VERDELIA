@@ -8,6 +8,7 @@ database/backups/*
 storage/auth-attempts.json
 storage/sessions/
 storage/compat/
+/storage/
 docs/CREDENCIALES_DEMO.local.md
 .DS_Store
 Thumbs.db

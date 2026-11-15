@@ -54,9 +54,6 @@ final class AuthController
             $password = is_string($_POST['password'] ?? null) ? $_POST['password'] : '';
             $confirmation = is_string($_POST['password_confirmation'] ?? null) ? $_POST['password_confirmation'] : '';
             try {
-                if (($_POST['academic_demo'] ?? null) !== '1') {
-                    throw new AuthValidationException(['consent' => 'Confirma que entiendes que es una demostración académica.']);
-                }
                 $user = $this->service()->register($name, $email, $password, $confirmation);
                 $this->establishSession($user);
                 verdelia_set_flash(['type' => 'success', 'message' => 'Tu cuenta de cliente ya está lista.']);

@@ -94,7 +94,7 @@ try {
 
     $userB=$newClient(); $registerPage=$request($userB,$base,'GET','/registro'); $registerToken=$csrf($registerPage['body']);
     $emailB='checkout-http-'.bin2hex(random_bytes(5)).'@verdelia.test';
-    $registered=$request($userB,$base,'POST','/registro',['csrf_token'=>$registerToken,'name'=>'Cliente sin acceso','email'=>$emailB,'password'=>'DemoCheckout2026!','password_confirmation'=>'DemoCheckout2026!','academic_demo'=>'1']);
+    $registered=$request($userB,$base,'POST','/registro',['csrf_token'=>$registerToken,'name'=>'Cliente sin acceso','email'=>$emailB,'password'=>'DemoCheckout2026!','password_confirmation'=>'DemoCheckout2026!']);
     $assert($registered['status']===303,'segunda cuenta ficticia puede iniciar su sesión de prueba');
     $privateReceipt=$request($userB,$base,'GET',$receiptLocation);
     $assert($privateReceipt['status']===404,'otro cliente no obtiene detalle ni recibo del pedido');
