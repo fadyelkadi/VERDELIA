@@ -3,7 +3,12 @@ declare(strict_types=1);
 
 final class AdminController
 {
-    public function __construct(private AdminRepository $repository) {}
+    private ProductImageStorage $productImages;
+
+    public function __construct(private AdminRepository $repository, ?ProductImageStorage $productImages = null)
+    {
+        $this->productImages = $productImages ?? new ProductImageStorage();
+    }
 
     public function handle(string $method,string $path,int $adminId): void
     {
@@ -14,7 +19,21 @@ final class AdminController
         $target='/admin'; $success='Cambios guardados.';
         try {
             if ($path==='/admin/productos/guardar') {
-                $id=$this->repository->saveProduct($_POST);
+                $editId=isset($_POST['id']) && $_POST['id']!==''?$this->repository->positiveId($_POST['id']):null;
+                $previous=$editId===null?null:$this->repository->product($editId);
+                $previousImage=is_array($previous)?(string)($previous['image_path']??''):'';
+                $input=$_POST;
+                $uploadedImage=$this->productImages->store($_FILES['image_upload']??null);
+                if ($uploadedImage!==null) $input['image_path']=$uploadedImage;
+                try {
+                    $id=$this->repository->saveProduct($input);
+                } catch (Throwable $exception) {
+                    if ($uploadedImage!==null) $this->productImages->deleteIfUnreferenced($uploadedImage,$this->repository);
+                    throw $exception;
+                }
+                $saved=$this->repository->product($id);
+                $savedImage=is_array($saved)?(string)($saved['image_path']??''):'';
+                if ($previousImage!=='' && $previousImage!==$savedImage) $this->productImages->deleteIfUnreferenced($previousImage,$this->repository);
                 $target='/admin/productos/'.$id.'/editar'; $success='Producto guardado. El catálogo ya usa los datos actualizados.';
             } elseif (preg_match('#^/admin/productos/(\d+)/estado$#',$path,$match)===1) {
                 $active=($_POST['active']??'')==='1'; $this->repository->setProductActive((int)$match[1],$active); $target='/admin/productos'; $success=$active?'Producto activado.':'Producto desactivado sin borrar su historial.';

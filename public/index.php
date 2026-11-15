@@ -23,6 +23,7 @@ require dirname(__DIR__) . '/app/AuthController.php';
 require dirname(__DIR__) . '/app/OrderRepository.php';
 require dirname(__DIR__) . '/app/CheckoutController.php';
 require dirname(__DIR__) . '/app/AdminRepository.php';
+require dirname(__DIR__) . '/app/ProductImageStorage.php';
 require dirname(__DIR__) . '/app/AdminController.php';
 require dirname(__DIR__) . '/app/AnalyticsModels.php';
 require dirname(__DIR__) . '/app/AnalyticsRepository.php';

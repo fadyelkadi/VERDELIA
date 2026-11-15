@@ -192,10 +192,30 @@
   });
 
   document.querySelectorAll('.admin-image-select').forEach((select) => select.addEventListener('change', () => {
+    const field = select.closest('.admin-image-field');
+    const upload = field?.querySelector('[data-admin-image-upload]');
+    if (upload?.files?.length) return;
     const option = select.selectedOptions[0];
-    const preview = select.closest('label')?.querySelector('.admin-image-preview');
-    if (preview && option?.dataset.image) preview.src = option.dataset.image;
+    const preview = field?.querySelector('.admin-image-preview');
+    if (preview) preview.src = option?.dataset.image || '/assets/images/products/product-placeholder.svg';
   }));
+  document.querySelectorAll('[data-admin-image-upload]').forEach((input) => {
+    let previewUrl = null;
+    const field = input.closest('.admin-image-field');
+    const preview = field?.querySelector('.admin-image-preview');
+    const select = field?.querySelector('.admin-image-select');
+    input.addEventListener('change', () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = null;
+      if (input.files?.[0] && preview) {
+        previewUrl = URL.createObjectURL(input.files[0]);
+        preview.src = previewUrl;
+      } else if (preview) {
+        preview.src = select?.selectedOptions[0]?.dataset.image || '/assets/images/products/product-placeholder.svg';
+      }
+    });
+    window.addEventListener('pagehide', () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, { once: true });
+  });
   document.addEventListener('submit', (event) => {
     if (event.target instanceof HTMLFormElement && event.target.dataset.confirm
       && !window.confirm(event.target.dataset.confirm)) event.preventDefault();

@@ -92,11 +92,15 @@ final class AdminRepository
     public function imageOptions(): array
     {
         $rows=$this->pdo->query('SELECT DISTINCT local_path,alt_text FROM product_images ORDER BY local_path')->fetchAll();
-        $root=dirname(__DIR__).DIRECTORY_SEPARATOR.'public'.DIRECTORY_SEPARATOR;
-        return array_values(array_filter($rows,static function(array $row) use ($root): bool {
-            $path=(string)$row['local_path'];
-            return preg_match('#^assets/images/products/[A-Za-z0-9._-]+\.(?:png|webp|jpe?g|svg)$#i',$path)===1 && is_file($root.str_replace('/',DIRECTORY_SEPARATOR,$path));
-        }));
+        return array_values(array_filter($rows,fn(array $row): bool=>$this->productImagePathExists((string)$row['local_path'])));
+    }
+
+    public function imagePathReferenceCount(string $path): int
+    {
+        if (preg_match('#^uploads/products/[a-f0-9]{32}\.(?:jpg|png|webp)$#D',$path)!==1) return 1;
+        $query=$this->pdo->prepare('SELECT COUNT(*) FROM product_images WHERE local_path=?');
+        $query->execute([$path]);
+        return (int)$query->fetchColumn();
     }
 
     public function customers(string $search, int $page, int $perPage=15): array
@@ -145,18 +149,21 @@ final class AdminRepository
         $cost=$this->moneyCents($input['cost']??null,'Costo');
         $initialStock=$id===null?$this->nonnegativeInt($input['initial_stock']??'0','Inventario inicial'):null;
         $active=($input['active']??'')==='1'?1:0; $featured=($input['featured']??'')==='1'?1:0;
-        $image=trim($this->inputText($input,'image',255));
+        $imagePath=trim($this->inputText($input,'image_path',255,true));
+        if ($imagePath==='') {
+            $legacyImage=trim($this->inputText($input,'image',255,true));
+            if ($legacyImage!=='') $imagePath=str_starts_with($legacyImage,'assets/images/products/')||str_starts_with($legacyImage,'uploads/products/')?$legacyImage:'assets/images/products/'.$legacyImage;
+        }
         if (preg_match('/^[A-Z0-9][A-Z0-9-]{2,29}$/',$sku)!==1) throw new AdminException('El SKU debe tener entre 3 y 30 letras, números o guiones.');
         if ($name==='' || $this->length($name)>160) throw new AdminException('El nombre del producto es obligatorio y admite hasta 160 caracteres.');
         if (preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/',$slug)!==1) throw new AdminException('El enlace del producto no tiene un formato válido.');
         if ($care!=='' && !in_array($care,['Fácil','Media','Avanzada'],true)) throw new AdminException('El nivel de cuidado seleccionado no es válido.');
         if ($active===1 && !$this->categoryIsActive($categoryId)) throw new AdminException('Activa primero la categoría seleccionada.');
-        $options=array_column($this->imageOptions(),'local_path');
-        if (!in_array('assets/images/products/'.$image,$options,true)) throw new AdminException('Selecciona una imagen local disponible.');
+        if (!$this->productImagePathExists($imagePath)) throw new AdminException('Elige una imagen del catálogo o sube una imagen JPG, PNG o WebP.');
         if ($id!==null && $this->product($id)===null) throw new AdminException('El producto ya no existe.',404);
 
         try {
-            return $this->transaction(function() use($id,$sku,$name,$scientific,$description,$light,$care,$slug,$categoryId,$price,$cost,$active,$featured,$image,$initialStock): int {
+            return $this->transaction(function() use($id,$sku,$name,$scientific,$description,$light,$care,$slug,$categoryId,$price,$cost,$active,$featured,$imagePath,$initialStock): int {
                 $categoryLock=$this->pdo->prepare('SELECT active FROM categories WHERE id=? FOR UPDATE'); $categoryLock->execute([$categoryId]); $categoryActive=$categoryLock->fetchColumn();
                 if ($categoryActive===false) throw new AdminException('La categoría seleccionada ya no existe.',409);
                 if ($active===1 && (int)$categoryActive!==1) throw new AdminException('Activa primero la categoría seleccionada.',409);
@@ -174,14 +181,13 @@ final class AdminRepository
                     $update->execute([...$values,$id]);
                     $productId=$id;
                 }
-                $path='assets/images/products/'.$image;
                 $primary=$this->pdo->prepare('SELECT id FROM product_images WHERE product_id=? ORDER BY position_num,id LIMIT 1 FOR UPDATE'); $primary->execute([$productId]); $imageId=$primary->fetchColumn();
                 if ($imageId===false) {
                     $saveImage=$this->pdo->prepare('INSERT INTO product_images(product_id,local_path,alt_text,position_num) VALUES(?,?,?,0)');
-                    $saveImage->execute([$productId,$path,'Imagen local de '.$name]);
+                    $saveImage->execute([$productId,$imagePath,'Imagen local de '.$name]);
                 } else {
                     $saveImage=$this->pdo->prepare('UPDATE product_images SET local_path=?,alt_text=? WHERE id=?');
-                    $saveImage->execute([$path,'Imagen local de '.$name,(int)$imageId]);
+                    $saveImage->execute([$imagePath,'Imagen local de '.$name,(int)$imageId]);
                 }
                 return $productId;
             });
@@ -232,7 +238,7 @@ final class AdminRepository
 
     public function movements(int $productId, int $limit=30): array
     {
-        $query=$this->pdo->prepare('SELECT delta,reason,created_at,order_id FROM stock_movements WHERE product_id=? ORDER BY created_at DESC,id DESC LIMIT '.max(1,min(50,$limit)));
+        $query=$this->pdo->prepare('SELECT m.delta,m.reason,m.created_at,m.order_id,o.order_number FROM stock_movements m LEFT JOIN orders o ON o.id=m.order_id WHERE m.product_id=? ORDER BY m.created_at DESC,m.id DESC LIMIT '.max(1,min(50,$limit)));
         $query->execute([$productId]); return $query->fetchAll();
     }
 
@@ -271,6 +277,14 @@ final class AdminRepository
     private function page(int $page,int $perPage,int $total): array
     {
         $perPage=max(1,min(30,$perPage)); $pages=max(1,(int)ceil($total/$perPage)); $page=max(1,min($pages,$page)); return [$page,$perPage,$pages];
+    }
+    private function productImagePathExists(string $path): bool
+    {
+        $safePath=preg_match('#^assets/images/products/[A-Za-z0-9._-]+\.(?:png|webp|jpe?g|svg)$#iD',$path)===1
+            || preg_match('#^uploads/products/[a-f0-9]{32}\.(?:jpg|png|webp)$#D',$path)===1;
+        if (!$safePath) return false;
+        $root=dirname(__DIR__).DIRECTORY_SEPARATOR.'public'.DIRECTORY_SEPARATOR;
+        return is_file($root.str_replace('/',DIRECTORY_SEPARATOR,$path));
     }
     private function inputText(array $input,string $key,int $max,bool $optional=false): string
     {

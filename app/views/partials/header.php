@@ -11,7 +11,6 @@ $navLinks = [
 if ($navUser === null) {
     $navLinks += ['/login'=>'Iniciar sesión', '/registro'=>'Registrarse'];
 } else {
-    $navLinks['/cuenta'] = 'Mi perfil';
     if (isAdmin()) $navLinks['/admin'] = 'Administración';
 }
 ?>

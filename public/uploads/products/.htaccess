@@ -1,0 +1,6 @@
+Options -Indexes
+RemoveHandler .php .php3 .php4 .php5 .php7 .phtml .phar
+RemoveType .php .php3 .php4 .php5 .php7 .phtml .phar
+<FilesMatch "(?i)\.(?:php[0-9]?|phtml|phar|cgi|pl|asp|aspx|sh|py)$">
+  Require all denied
+</FilesMatch>

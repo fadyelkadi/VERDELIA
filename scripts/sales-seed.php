@@ -45,7 +45,7 @@ function verdelia_seed_sales(PDO $pdo, array $catalog, array $customers, DateTim
             $plannedUnits = $base + ($productIndex % 4) + (($productIndex + 2 * $index) % 3) - 1;
             $remaining = intdiv($plannedUnits * $days, $monthDays);
             for ($basket = 0; $remaining > 0; $basket++) {
-                $quantity = min($remaining, 1 + (($productIndex + $index + $basket) % 3));
+                $quantity = min($remaining, 1 + (($productIndex + $index + $basket) % 4));
                 $remaining -= $quantity;
                 $dayOffset = ($productIndex * 5 + $index * 3 + $basket * 7) % $days;
                 $date = $month->modify("+{$dayOffset} days")->setTime(10 + $productIndex % 8, 20);
