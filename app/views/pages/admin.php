@@ -18,15 +18,24 @@ $paymentLabel=static fn(?string $status):string=>match($status){'APPROVED'=>'Apr
 $analytics=is_array($adminAnalyticsResult??null)?$adminAnalyticsResult:null;
 $analyticsMetrics=$analytics['metrics']??[];
 $analyticsSeries=$analytics['series']??[];
+$analyticsTrend=$analytics['trend']??[];
+$analyticsTrendSeries=$analyticsTrend['series']??[];
+$analyticsProductOptions=$analytics['product_options']??[];
 $analyticsModels=$analytics['models']??[];
 $analyticsLinear=$analyticsModels['linear']??[];
 $analyticsExponential=$analyticsModels['exponential']??[];
 $analyticsCompare=$analyticsModels['comparison']??[];
+$trendMetric=$analyticsTrend['metric']??'gross_profit';
+$trendMetricKey=$trendMetric==='revenue'?'revenue_cents':'gross_profit_cents';
+$trendMetricLabel=$trendMetric==='revenue'?'Ingresos por ventas':'Ganancia bruta estimada';
+$trendProduct=$analyticsTrend['product']??null;
+$trendProductLabel=is_array($trendProduct)?((string)$trendProduct['name'].' · '.(string)$trendProduct['sku']):'Todos los productos';
 $chartJson=static fn(array $data):string=>h((string)json_encode($data,JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP|JSON_UNESCAPED_UNICODE|JSON_PRESERVE_ZERO_FRACTION));
 $growthText=static function(mixed $value):string{if(!is_numeric($value))return 'Sin base anterior';$number=(float)$value;return ($number>0?'+':'').number_format($number,1,',','.').'% frente al período anterior';};
 $revenueChart=array_map(static fn(array $point):array=>['label'=>$point['label'],'value'=>(int)$point['revenue_cents']],$analyticsSeries);
 $evolutionChart=array_map(static fn(array $point):array=>['label'=>$point['label'],'revenue'=>(int)$point['revenue_cents'],'cost'=>(int)$point['cogs_cents'],'profit'=>(int)$point['gross_profit_cents']],$analyticsSeries);
-$modelChart=['labels'=>array_column($analyticsSeries,'label'),'actual'=>array_map(static fn(array $point):int=>(int)$point['revenue_cents'],$analyticsSeries),'linear'=>$analyticsLinear['fitted']??[],'exponential'=>$analyticsExponential['fitted']??[],'linear_forecast'=>$analyticsLinear['forecast']??[],'exponential_forecast'=>$analyticsExponential['forecast']??[]];
+$trendBarChart=array_map(static fn(array $point):array=>['label'=>$point['label'],'value'=>(int)$point[$trendMetricKey]],$analyticsTrendSeries);
+$modelChart=['labels'=>array_column($analyticsTrendSeries,'label'),'actual'=>array_map(static fn(array $point):int=>(int)$point[$trendMetricKey],$analyticsTrendSeries),'linear'=>$analyticsLinear['fitted']??[],'exponential'=>$analyticsExponential['fitted']??[],'linear_forecast'=>$analyticsLinear['forecast']??[],'exponential_forecast'=>$analyticsExponential['forecast']??[]];
 ?>
 <section class="admin-shell page-gutter">
   <aside class="admin-sidebar">
@@ -65,15 +74,18 @@ $modelChart=['labels'=>array_column($analyticsSeries,'label'),'actual'=>array_ma
 
     <?php elseif($adminSection==='analitica' && $analytics!==null): ?>
       <section class="admin-table-panel analytics-filter-panel">
-        <div class="admin-panel-heading"><div><p class="eyebrow">Ventas confirmadas desde MySQL</p><h2>Período y agrupación</h2></div><span class="status-tag status-pagado">Sin servicios externos</span></div>
+        <div class="admin-panel-heading"><div><p class="eyebrow">Ventas confirmadas desde MySQL</p><h2>Período y enfoque del modelo</h2></div><span class="status-tag status-pagado">Sin servicios externos</span></div>
         <?php if(($adminAnalyticsError??'')!==''): ?><p class="admin-feedback is-error" role="alert"><?= h($adminAnalyticsError) ?> Se muestran las fechas predeterminadas.</p><?php endif; ?>
+        <?php if(($analytics['product_error']??'')!==''): ?><p class="admin-feedback is-error" role="alert"><?= h($analytics['product_error']) ?></p><?php endif; ?>
         <form class="admin-filters analytics-filters" method="get" action="/admin/analitica">
           <label>Desde<input class="text-input" type="date" name="desde" required value="<?= h($analytics['filters']['from']) ?>"></label>
           <label>Hasta<input class="text-input" type="date" name="hasta" required value="<?= h($analytics['filters']['to']) ?>"></label>
           <label>Agrupar por<select class="text-input" name="periodo"><option value="day" <?= $analytics['filters']['period']==='day'?'selected':'' ?>>Día</option><option value="week" <?= $analytics['filters']['period']==='week'?'selected':'' ?>>Semana</option><option value="month" <?= $analytics['filters']['period']==='month'?'selected':'' ?>>Mes</option></select></label>
+          <label>Producto para la regresión<select class="text-input" name="producto"><option value="all" <?= $trendProduct===null?'selected':'' ?>>Todos los productos</option><?php foreach($analyticsProductOptions as $option): ?><option value="<?= h((string)$option['sku']) ?>" <?= is_array($trendProduct)&&(string)$trendProduct['sku']===(string)$option['sku']?'selected':'' ?>><?= h((string)$option['name'].' · '.(string)$option['sku']) ?></option><?php endforeach; ?></select></label>
+          <label>Variable del modelo<select class="text-input" name="metrica"><option value="gross_profit" <?= $trendMetric==='gross_profit'?'selected':'' ?>>Ganancia bruta (incluye pérdidas)</option><option value="revenue" <?= $trendMetric==='revenue'?'selected':'' ?>>Ingresos por ventas</option></select></label>
           <button class="button button-primary button-small" type="submit">Actualizar análisis</button>
         </form>
-        <p class="admin-help">Máximo <?= (int)$analytics['filters']['range_days'] ?> días consultados. La comparación usa los <?= (int)$analytics['filters']['range_days'] ?> días inmediatamente anteriores.</p>
+        <p class="admin-help">Las métricas generales conservan toda la tienda; la regresión usa el producto y variable elegidos. Máximo <?= (int)$analytics['filters']['range_days'] ?> días consultados.</p>
       </section>
 
       <div class="metric-grid analytics-metric-grid">
@@ -86,13 +98,15 @@ $modelChart=['labels'=>array_column($analyticsSeries,'label'),'actual'=>array_ma
       </div>
 
       <section class="analytics-chart-grid">
-        <article class="admin-table-panel analytics-chart-panel"><div class="admin-panel-heading"><div><p class="eyebrow">Ingreso por producto</p><h2>Ventas por <?= h(match($analytics['filters']['period']){'day'=>'día','week'=>'semana',default=>'mes'}) ?></h2></div></div><div class="analytics-chart-wrap"><canvas class="analytics-canvas" data-chart="bars" data-points="<?= $chartJson($revenueChart) ?>" role="img" aria-label="Gráfica de barras de ingresos por período"><span>Ingresos por período</span></canvas></div><p class="admin-help">Importes en USD. Los períodos sin pedidos aparecen en cero.</p></article>
+        <article class="admin-table-panel analytics-chart-panel"><div class="admin-panel-heading"><div><p class="eyebrow">Ingresos de toda la tienda</p><h2>Ventas por <?= h(match($analytics['filters']['period']){'day'=>'día','week'=>'semana',default=>'mes'}) ?></h2></div></div><div class="analytics-chart-wrap"><canvas class="analytics-canvas" data-chart="bars" data-points="<?= $chartJson($revenueChart) ?>" role="img" aria-label="Gráfica de barras de ingresos por período"><span>Ingresos por período</span></canvas></div><p class="admin-help">Importes en USD. Los períodos sin pedidos aparecen en cero.</p></article>
         <article class="admin-table-panel analytics-chart-panel"><div class="admin-panel-heading"><div><p class="eyebrow">Composición del ingreso</p><h2>Ingresos, costo y margen bruto</h2></div></div><div class="analytics-chart-wrap"><canvas class="analytics-canvas" data-chart="evolution" data-points="<?= $chartJson($evolutionChart) ?>" role="img" aria-label="Gráfica temporal de ingresos, costo y ganancia bruta"><span>Ingresos, costos y ganancia</span></canvas></div><div class="analytics-legend"><span><i class="legend-revenue"></i>Ingresos</span><span><i class="legend-cost"></i>Costo</span><span><i class="legend-profit"></i>Ganancia bruta</span></div></article>
       </section>
 
+      <section class="analytics-chart-grid analytics-trend-grid">
+        <article class="admin-table-panel analytics-chart-panel"><div class="admin-panel-heading"><div><p class="eyebrow">Resultado del producto elegido</p><h2><?= h($trendMetricLabel) ?> por período</h2></div></div><div class="analytics-chart-wrap"><canvas class="analytics-canvas" data-chart="bars" data-points="<?= $chartJson($trendBarChart) ?>" role="img" aria-label="Gráfica de barras de <?= h($trendMetricLabel.' de '.$trendProductLabel) ?>"><span><?= h($trendMetricLabel) ?></span></canvas></div><p class="admin-help"><?= $trendMetric==='gross_profit'?'Las barras bajo cero representan pérdidas brutas del producto en ese período.':'Los períodos sin ventas aparecen en cero.' ?></p></article>
       <section class="admin-table-panel analytics-model-panel">
-        <div class="admin-panel-heading"><div><p class="eyebrow">Ajustes matemáticos · mínimos cuadrados</p><h2>Tendencia lineal y modelo exponencial</h2></div><span class="status-tag status-muted"><?= (int)count($analyticsSeries) ?> períodos</span></div>
-        <div class="analytics-chart-wrap analytics-model-chart"><canvas class="analytics-canvas" data-chart="models" data-points="<?= $chartJson($modelChart) ?>" role="img" aria-label="Ventas observadas y curvas de regresión lineal y exponencial"><span>Comparación de modelos</span></canvas></div>
+        <div class="admin-panel-heading"><div><p class="eyebrow">Ajustes matemáticos · mínimos cuadrados</p><h2><?= h($trendMetricLabel) ?> · <?= h($trendProductLabel) ?></h2></div><span class="status-tag status-muted"><?= (int)count($analyticsTrendSeries) ?> períodos</span></div>
+        <div class="analytics-chart-wrap analytics-model-chart"><canvas class="analytics-canvas" data-chart="models" data-points="<?= $chartJson($modelChart) ?>" role="img" aria-label="<?= h($trendMetricLabel.' de '.$trendProductLabel.' con curvas de regresión lineal y exponencial') ?>"><span>Comparación de modelos</span></canvas></div>
         <div class="analytics-legend"><span><i class="legend-revenue"></i>Histórico</span><span><i class="legend-linear"></i>Lineal</span><span><i class="legend-exponential"></i>Exponencial</span><span><i class="legend-forecast"></i>Proyección</span></div>
         <div class="analytics-model-grid">
           <article><h3>Regresión lineal</h3><?php if(($analyticsLinear['available']??false)===true): ?><p><code>y = a + bx</code>; pendiente: <strong><?= h(number_format((float)$analyticsLinear['slope']/100,2,',','.')) ?> USD/período</strong>.</p><p>Intercepto: <?= h(number_format((float)$analyticsLinear['intercept']/100,2,',','.')) ?> USD · R²: <?= is_numeric($analyticsLinear['r_squared']??null)?h(number_format((float)$analyticsLinear['r_squared'],4,',','.')):'no definido (serie constante)' ?> · RMSE: <?= h(number_format((float)$analyticsLinear['rmse']/100,2,',','.')) ?> USD.</p><?php else: ?><p><?= h((string)($analyticsLinear['reason']??'Modelo no disponible.')) ?></p><?php endif; ?></article>
@@ -101,7 +115,8 @@ $modelChart=['labels'=>array_column($analyticsSeries,'label'),'actual'=>array_ma
         <?php $comparisonModel=$analyticsCompare['model']??null; $slope=(float)($analyticsLinear['slope']??0); ?>
         <p class="analytics-model-conclusion"><?php if(($analyticsLinear['available']??false)===true): ?>La tendencia lineal observada es <?= $slope>0.01?'ascendente':($slope< -0.01?'descendente':'estable') ?>. <?php endif; ?><?= h((string)($analyticsCompare['reason']??'No fue posible comparar los modelos.')) ?><?php if($comparisonModel!==null): ?> Mejor ajuste del intervalo según RMSE: <strong><?= $comparisonModel==='linear'?'lineal':'exponencial' ?></strong>.<?php endif; ?></p>
         <div class="table-scroll"><table><thead><tr><th>Período futuro</th><th>Proyección lineal</th><th>Proyección exponencial</th></tr></thead><tbody><?php for($step=0;$step<3;$step++): ?><tr><td>Próximo período <?= $step+1 ?></td><td><?= isset($analyticsLinear['forecast'][$step])?h(money((int)round((float)$analyticsLinear['forecast'][$step]))):'—' ?></td><td><?= isset($analyticsExponential['forecast'][$step])?h(money((int)round((float)$analyticsExponential['forecast'][$step]))):'—' ?></td></tr><?php endfor; ?></tbody></table></div>
-        <p class="admin-help">Son estimaciones descriptivas basadas en el intervalo seleccionado, no garantías de ventas futuras. R² y RMSE se comparan en la escala original de ingresos. El ingreso excluye envío; la ganancia es bruta estimada y no descuenta gastos, impuestos ni operación.</p>
+        <p class="admin-help">La regresión lineal admite ganancias y pérdidas. La exponencial requiere al menos tres períodos y valores estrictamente positivos; cuando no aplica, se indica el motivo. Los modelos son descriptivos, no garantías; la ganancia es bruta estimada y no descuenta gastos, impuestos ni operación.</p>
+      </section>
       </section>
 
       <section class="analytics-chart-grid analytics-detail-grid">

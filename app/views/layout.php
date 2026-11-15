@@ -12,6 +12,9 @@ $storeData=json_encode(array_map(static fn(array $p): array => ['sku'=>$p['sku']
   <title><?= h($pageTitle) ?> · VERDELIA</title>
   <link rel="icon" href="/assets/images/brand/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/css/site.css">
+  <?php if ($route !== 'admin' && !isset($adminSection) && $route !== 'order' && empty($isReceipt)): ?>
+    <link rel="stylesheet" href="/assets/css/chat.css">
+  <?php endif; ?>
   <script defer src="/assets/js/site.js"></script>
 </head>
 <body data-page="<?= h($route) ?>">
@@ -24,5 +27,9 @@ $storeData=json_encode(array_map(static fn(array $p): array => ['sku'=>$p['sku']
   <?php require __DIR__ . '/partials/footer.php'; ?>
   <div class="toast" role="status" aria-live="polite" data-toast></div>
   <script>window.VERDELIA_PRODUCTS = <?= $storeData ?: '[]' ?>;</script>
+  <?php if ($route !== 'admin' && !isset($adminSection) && $route !== 'order' && empty($isReceipt)): ?>
+    <?php require __DIR__ . '/partials/chat.php'; ?>
+    <script defer src="/assets/js/chat.js"></script>
+  <?php endif; ?>
 </body>
 </html>

@@ -253,16 +253,26 @@
     if (!points.length) return showChartEmpty(canvas, 'No hay ventas confirmadas en este intervalo.');
     const rows = compressBars(points);
     const values = rows.map((point) => Number(point.value || 0));
-    const maximum = Math.max(1, ...values);
+    let minimum = Math.min(0, ...values); let maximum = Math.max(0, ...values);
+    if (minimum === maximum) { minimum = -1; maximum = 1; }
+    else {
+      const padding = (maximum - minimum) * 0.08;
+      if (minimum < 0) minimum -= padding;
+      if (maximum > 0) maximum += padding;
+    }
     const { context, width, height } = fitCanvas(canvas);
-    const frame = chartFrame(context, width, height, 0, maximum * 1.1, rows.map((point) => point.label));
+    const frame = chartFrame(context, width, height, minimum, maximum, rows.map((point) => point.label));
+    const zeroY = frame.y(0);
+    context.strokeStyle = chartColors.text; context.lineWidth = 1;
+    context.beginPath(); context.moveTo(frame.pad.left, zeroY); context.lineTo(width - frame.pad.right, zeroY); context.stroke();
     const slot = frame.plotW / rows.length;
     const barWidth = Math.max(1, slot * 0.62);
-    context.fillStyle = chartColors.revenue;
     rows.forEach((point, index) => {
-      const value = Math.max(0, Number(point.value || 0));
-      const barHeight = frame.y(0) - frame.y(value);
-      context.fillRect(frame.pad.left + slot * index + (slot - barWidth) / 2, frame.y(value), barWidth, Math.max(0, barHeight));
+      const value = Number(point.value || 0);
+      const top = frame.y(Math.max(0, value));
+      const bottom = frame.y(Math.min(0, value));
+      context.fillStyle = value < 0 ? chartColors.cost : chartColors.revenue;
+      context.fillRect(frame.pad.left + slot * index + (slot - barWidth) / 2, top, barWidth, Math.max(0, bottom - top));
     });
   };
   const drawLines = (canvas, labels, datasets) => {

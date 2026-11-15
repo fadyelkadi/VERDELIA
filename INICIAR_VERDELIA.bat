@@ -1,6 +1,8 @@
 @echo off
-setlocal
+setlocal EnableExtensions DisableDelayedExpansion
+echo Iniciando VERDELIA...
 cd /d "%~dp0"
+if errorlevel 1 goto :error
 
 set "PHP_EXE="
 if exist "%~dp0xampp\php\php.exe" set "PHP_EXE=%~dp0xampp\php\php.exe"
@@ -17,14 +19,15 @@ if not defined PHP_EXE (
   goto :error
 )
 
-"%PHP_EXE%" -r "if(PHP_VERSION_ID<80000){fwrite(STDERR,'PHP 8.0+ requerido. Detectado: '.PHP_VERSION.PHP_EOL);exit(1);} if(!extension_loaded('pdo_mysql')){fwrite(STDERR,'Falta la extension pdo_mysql en este PHP.'.PHP_EOL);exit(2);} echo 'PHP '.PHP_VERSION.' y pdo_mysql: OK'.PHP_EOL;"
+"%PHP_EXE%" "%~dp0scripts\check-runtime.php"
 if errorlevel 1 goto :error
 
-if exist "%~dp0xampp\mysql_start.bat" (
-  echo Intentando iniciar MySQL desde la carpeta xampp del USB...
-  start "Verdelia MySQL" /min cmd /c ""%~dp0xampp\mysql_start.bat""
-  timeout /t 4 /nobreak >nul
-)
+if not exist "%~dp0xampp\mysql_start.bat" goto :mysql_ready
+echo Intentando iniciar MySQL desde la carpeta xampp del USB...
+start "Verdelia MySQL" /min "%~dp0xampp\mysql_start.bat"
+timeout /t 4 /nobreak >nul
+
+:mysql_ready
 
 echo.
 echo Verificando MySQL e inicializando VERDELIA...

@@ -23,6 +23,23 @@ El lanzador busca XAMPP junto al proyecto, en `VERDELIA_XAMPP_HOME`/`XAMPP_HOME`
 
 Para iniciar el servidor sin abrir otra pestaña (por ejemplo, desde una consola de prueba), define `VERDELIA_OPEN_BROWSER=0` antes de ejecutar el lanzador. El valor predeterminado abre la dirección local automáticamente.
 
+## Asistente de la tienda
+
+Abre el chat en la tienda y prueba «¿Cuánto cuesta la Monstera?», «¿Hay stock de Sansevieria?», «Recomiéndame una planta para poca luz y de cuidado fácil» o «¿Cuál es la tendencia de demanda del Aloe?».
+
+El asistente consulta precios y existencias del catálogo. Ordena las recomendaciones por grados de compatibilidad con la luz disponible y usa la regresión lineal sobre unidades vendidas para estimar la demanda mensual por planta. [Guía del asistente](docs/CHATBOT.md)
+
+### Configuración opcional de Python
+
+Desde CMD, con MySQL activo, configura la ruta a Python antes de ejecutar el lanzador.
+
+```bat
+set "VERDELIA_PYTHON_EXE=C:\ruta\a\python.exe"
+INICIAR_VERDELIA.bat
+```
+
+El ZIP incluye el script de Python. En las PCs con XAMPP, el cálculo se ejecuta en PHP cuando Python no está configurado o no responde.
+
 ## Base de demostración
 
 Nombre: `verdelia_demo`. El bootstrap conserva 12 tablas, 4 categorías, 12 productos, 2 cuentas demo y 96 pedidos históricos. Credenciales de prueba:
@@ -47,6 +64,6 @@ El esquema y la semilla viven en `database/schema.sql` y `scripts/bootstrap.php`
 
 ## Estado y limitaciones
 
-Inicio, Tienda, filtros, orden, búsqueda, paginación y fichas consultan MySQL. El carrito se valida en el servidor y persiste para clientes autenticados; consultar o editarlo no descuenta stock. El checkout crea pedidos persistentes y ofrece resultados de pago simulados, sin cobros reales. ADMIN gestiona productos, categorías, imágenes locales, inventario y pedidos; consulta clientes en `/admin` y revisa métricas/modelos en `/admin/analitica`. Las ventas usan importes y costos históricos guardados por línea; la ganancia es bruta estimada y no descuenta gastos, impuestos ni operación.
+Inicio, Tienda, filtros, orden, búsqueda, paginación y fichas consultan MySQL. El carrito se valida en el servidor y persiste para clientes autenticados; consultar o editarlo no descuenta stock. El checkout crea pedidos persistentes y ofrece resultados de pago simulados con recibo imprimible, sin cobros reales. ADMIN gestiona productos, categorías, imágenes locales, inventario y pedidos; consulta clientes en `/admin` y revisa métricas/modelos en `/admin/analitica`. Allí puede elegir un producto y ajustar regresiones lineal y exponencial sobre sus ingresos o ganancia bruta estimada. La ganancia no descuenta gastos, impuestos ni operación; el ajuste exponencial requiere valores positivos.
 
 Consulta [la guía de presentación](docs/GUIA_PRESENTACION_URBE.md), [la matriz de requisitos](docs/REQUISITOS_PROFESOR.md), [las pruebas finales](docs/PRUEBAS_FINALES.md), [el progreso](docs/PROGRESO.md) y [la restauración](RESTAURAR_BASE_DATOS.md). El arranque requiere MySQL/MariaDB compatible en cada PC. Ejecutar XAMPP desde USB no está garantizado en cualquier equipo; esta entrega no copia ni instala XAMPP.

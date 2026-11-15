@@ -17,7 +17,7 @@
 3. **Checkout simulado:** completar datos ficticios y probar rechazo o aprobación. Aprobación crea pedido, recibo e historial; descuenta stock una vez. No introducir tarjeta ni datos reales.
 4. **Panel administrativo (`/admin`):** enseñar dashboard, búsquedas de productos, stock, clientes y pedidos. Un cliente no autorizado recibe denegación aunque visite la ruta directamente.
 5. **Analítica (`/admin/analitica`):** seleccionar fechas y agrupación diaria/semanal/mensual. Mostrar ingresos, costo histórico, ganancia bruta estimada, variación frente al intervalo anterior, mejores productos/categorías y períodos sin ventas.
-6. **Modelos:** explicar que `y = a + bx` es una regresión por mínimos cuadrados y que `y = A·e^(Bx)` solo se calcula con tres o más períodos estrictamente positivos. Comparar RMSE en la escala original; las proyecciones son exploratorias.
+6. **Regresión por producto:** elegir un SKU y analizar sus ingresos o ganancia bruta estimada. Mostrar en la gráfica los datos históricos, la recta, la curva exponencial disponible y las tres proyecciones. Explicar que `y = a + bx` admite ganancias y pérdidas, mientras que `y = A·e^(Bx)` requiere tres o más valores estrictamente positivos; si no se cumple, la pantalla explica por qué no aplica. Comparar RMSE en la escala original de la variable elegida; las proyecciones son exploratorias.
 7. **Cierre:** mostrar `docs/PRUEBAS_FINALES.md` y el respaldo `database/backups/verdelia_demo.sql`. Detener el servidor local con Ctrl+C.
 
 ## Explicación de la analítica
@@ -25,7 +25,7 @@
 - Solo cuenta pedidos `PAID`/`FULFILLED` con pago aprobado. Se cuenta el importe de productos desde las líneas históricas; el envío de esta demo es cero y no se suma.
 - El costo y categoría se guardan como snapshots por línea para que cambios posteriores al catálogo no modifiquen reportes pasados.
 - La ganancia es **bruta estimada** (ventas de producto menos costo de mercancía). No descuenta impuestos, salarios, comisiones, envío, mermas ni otros gastos.
-- R² puede no estar definido cuando la serie es constante. El modelo exponencial no se calcula si faltan períodos positivos. Una ventana sin pedidos no genera pronóstico.
+- R² puede no estar definido cuando la serie es constante. La regresión lineal puede representar períodos con pérdida; la exponencial no se calcula si hay períodos nulos o negativos. Una ventana sin pedidos no genera pronóstico.
 - Los registros son ilustrativos; no deben presentarse como transacciones reales del negocio.
 
 ## Si se necesita restaurar la base

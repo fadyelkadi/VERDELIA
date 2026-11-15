@@ -33,6 +33,7 @@ try {
     foreach(preg_split('/;\s*(?:\r?\n|$)/',$sql) as $statement) if(trim($statement)!=='') $server->exec($statement);
     $server->exec('USE `'.$database.'`');
     require $root.'/scripts/migrations.php'; verdelia_apply_migrations($server);
+    $server->prepare('UPDATE users SET password_hash=? WHERE email=?')->execute([password_hash('123456789',PASSWORD_BCRYPT),'admin@verdelia.test']);
     $salesBefore=(int)$server->query("SELECT COUNT(*) FROM orders WHERE status IN ('PAID','FULFILLED')")->fetchColumn();
 
     $socket=stream_socket_server('tcp://127.0.0.1:0',$errno,$errstr); if($socket===false) throw new RuntimeException('No se pudo reservar puerto local de prueba. '.$errstr); $address=stream_socket_get_name($socket,false); fclose($socket);

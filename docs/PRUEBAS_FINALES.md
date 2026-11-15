@@ -1,5 +1,7 @@
 # Pruebas finales y estado de entrega
 
+Actualización 2026-11-10: corregida la incompatibilidad PHP 8.0 que apareció en URBE. Con PHP 8.0.28 pasaron las integraciones de analítica (32), administración HTTP (27) y checkout HTTP (32) en bases temporales; queda resuelta la integración pendiente indicada más abajo. Ver `docs/COMPATIBILIDAD_PHP.md`. La comprobación física en URBE del paquete corregido sigue pendiente.
+
 Actualizado: 2026-11-04. Alcance: tienda local VERDELIA, XAMPP MariaDB, migración analítica, respaldo final y preparación de documentación.
 
 ## Validaciones de cierre ejecutadas
@@ -40,3 +42,7 @@ La copia Desktop existente se sincronizó con los archivos de proyecto: 111 arch
 ## Advertencia de utilidad
 
 Las ventas y pagos demo no son reales. La ganancia es bruta estimada con costos históricos unitarios; no incluye impuestos, comisiones, logística, mermas, salarios ni gastos administrativos. Las regresiones son descriptivas y no garantizan resultados futuros.
+
+## Ajuste posterior de regresiones — 2026-11-10
+
+El panel de analítica ahora permite elegir un producto y ajustar sus ingresos o ganancia bruta por período. La regresión lineal representa pérdidas y ganancias; el ajuste exponencial explica cuándo no aplica a datos cero o negativos. La validación numérica de 27 aserciones pasó. La integración MariaDB/HTTP de esta ampliación queda pendiente hasta que MySQL de XAMPP esté activo; el estado detallado figura en `docs/PRUEBAS_ANALITICA.md`.

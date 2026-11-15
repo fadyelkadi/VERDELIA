@@ -94,6 +94,27 @@ final class CatalogRepository
         return array_map([$this,'normalizeProduct'],$statement->fetchAll());
     }
 
+    /** Datos públicos del catálogo para respuestas del asistente. */
+    public function chatProducts(): array
+    {
+        $statement=$this->pdo->query($this->productSelect().' WHERE p.active=1 AND c.active=1 ORDER BY p.name,p.id');
+        return array_map([$this,'normalizeProduct'],$statement->fetchAll());
+    }
+
+    /** Unidades vendidas por mes confirmado; la capa de chat completa los meses vacíos. */
+    public function chatMonthlyUnits(int $productId, string $from, string $until): array
+    {
+        $query=$this->pdo->prepare("SELECT DATE_FORMAT(o.confirmed_at,'%Y-%m') AS month,SUM(oi.quantity) AS units
+            FROM orders o JOIN order_items oi ON oi.order_id=o.id
+            WHERE oi.product_id=? AND o.status IN ('PAID','FULFILLED') AND o.confirmed_at>=? AND o.confirmed_at<?
+                AND EXISTS (SELECT 1 FROM payments p WHERE p.order_id=o.id AND p.status='APPROVED')
+            GROUP BY DATE_FORMAT(o.confirmed_at,'%Y-%m') ORDER BY month");
+        $query->execute([$productId,$from,$until]);
+        $result=[];
+        foreach ($query->fetchAll() as $row) $result[(string)$row['month']]=(int)$row['units'];
+        return $result;
+    }
+
     private function productSelect(): string
     {
         return 'SELECT p.id,p.sku,p.slug,p.name,p.scientific_name,p.description,p.price_cents,p.stock,p.light,p.care_level,p.featured,p.created_at,c.slug AS category,c.name AS category_name,pi.local_path AS image_path,pi.alt_text AS image_alt FROM products p JOIN categories c ON c.id=p.category_id LEFT JOIN product_images pi ON pi.id=(SELECT pi2.id FROM product_images pi2 WHERE pi2.product_id=p.id ORDER BY pi2.position_num,pi2.id LIMIT 1)';

@@ -4,6 +4,8 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/app/helpers.php';
 require dirname(__DIR__) . '/app/database.php';
 require dirname(__DIR__) . '/app/CatalogRepository.php';
+require dirname(__DIR__) . '/app/ShopChatRegression.php';
+require dirname(__DIR__) . '/app/ShopChat.php';
 require dirname(__DIR__) . '/app/AuthService.php';
 require dirname(__DIR__) . '/app/auth.php';
 require dirname(__DIR__) . '/app/CartRepository.php';
@@ -36,6 +38,18 @@ $GLOBALS['verdelia_auth_unavailable'] = $authUnavailable;
 
 $routePath = '/' . trim(rawurldecode(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'), '/');
 if ($routePath === '//') $routePath = '/';
+if ($routePath === '/api/chat') {
+    try {
+        (new ShopChat(new CatalogRepository(verdelia_db())))->handle($requestMethod);
+    } catch (Throwable $exception) {
+        verdelia_log_error($exception, 'shop-chat-api');
+        http_response_code(503);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store, max-age=0');
+        header('X-Content-Type-Options: nosniff');
+        exit(json_encode(['ok'=>false,'message'=>'El asistente no está disponible temporalmente. Inténtalo nuevamente.'], JSON_UNESCAPED_UNICODE));
+    }
+}
 if (in_array($routePath, ['/login', '/registro', '/logout', '/cuenta'], true) && $requestMethod === 'POST') {
     try {
         if ($authService === null && $routePath !== '/logout') $authService = new AuthService(verdelia_db());
@@ -299,11 +313,13 @@ if ($path === '/') {
             $fromValue=is_string($_GET['desde']??null)?$_GET['desde']:null;
             $toValue=is_string($_GET['hasta']??null)?$_GET['hasta']:null;
             $periodValue=is_string($_GET['periodo']??null)?$_GET['periodo']:null;
+            $productValue=is_string($_GET['producto']??null)?trim($_GET['producto']):null;
+            $metricValue=is_string($_GET['metrica']??null)?$_GET['metrica']:null;
             try {
-                $adminAnalyticsResult=$analyticsRepository->analyze($fromValue,$toValue,$periodValue);
+                $adminAnalyticsResult=$analyticsRepository->analyze($fromValue,$toValue,$periodValue,$productValue,$metricValue);
             } catch (InvalidArgumentException $validationError) {
                 $adminAnalyticsError=$validationError->getMessage();
-                $adminAnalyticsResult=$analyticsRepository->analyze(null,null,$periodValue);
+                $adminAnalyticsResult=$analyticsRepository->analyze(null,null,$periodValue,$productValue,$metricValue);
             }
         } else {
             http_response_code(404); $route='not-found'; $view='not-found.php'; $pageTitle='Página no encontrada';

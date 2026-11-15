@@ -14,6 +14,12 @@ $near($line['r_squared'],1.0,1.0e-9,'R² lineal perfecto');
 $near($line['forecast'][0]??null,10.0,1.0e-9,'primera proyección lineal');
 $assert(count($line['fitted'])===4&&count($line['forecast'])===2,'valores estimados y proyecciones tienen tamaño esperado');
 
+$profitLoss=AnalyticsModels::linear([-500,0,500],1);
+$assert($profitLoss['available'],'regresión lineal admite pérdidas, equilibrio y ganancias');
+$near($profitLoss['slope'],500.0,1.0e-9,'pendiente lineal correcta para serie con pérdidas y ganancias');
+$near($profitLoss['intercept'],-500.0,1.0e-9,'intercepto correcto para serie con pérdidas y ganancias');
+$near($profitLoss['forecast'][0]??null,1000.0,1.0e-9,'proyección lineal conserva la escala con pérdidas y ganancias');
+
 $exponential=AnalyticsModels::exponential([2,4,8,16],2);
 $assert($exponential['available'],'ajuste exponencial positivo disponible');
 $near($exponential['a'],2.0,1.0e-9,'parámetro A de y=2·e^(ln2 x)');
@@ -33,6 +39,7 @@ $assert(!AnalyticsModels::exponential([3,6])['available'],'menos de tres puntos 
 $assert(!AnalyticsModels::exponential([1,0,3])['available'],'ventas cero impiden logaritmos exponenciales');
 $assert(!AnalyticsModels::exponential([-1,2,3])['available'],'ventas negativas impiden logaritmos exponenciales');
 $assert(!AnalyticsModels::linear([INF,1])['available'],'valores infinitos no contaminan el ajuste');
+$assert(!AnalyticsModels::exponential([-500,0,500])['available'],'regresión exponencial no inventa un ajuste para pérdidas o equilibrio');
 $assert(AnalyticsModels::compare($line,$exponential)['available'],'comparación produce resultado para dos ajustes válidos');
 $assert(AnalyticsModels::compare(AnalyticsModels::linear([1]),AnalyticsModels::exponential([1,0,2]))['model']===null,'sin modelos válidos no se elige ganador');
 

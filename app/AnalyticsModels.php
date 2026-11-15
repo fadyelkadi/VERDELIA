@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-/** Modelos descriptivos de ventas; no representan una garantía de resultados futuros. */
+/** Modelos descriptivos por período; no representan una garantía de resultados futuros. */
 final class AnalyticsModels
 {
     /** @return array{available:bool,reason:string,n:int,slope:?float,intercept:?float,r_squared:?float,rmse:?float,fitted:array,forecast:array} */
@@ -38,7 +38,7 @@ final class AnalyticsModels
         $n = count($y);
         if ($n < 3) return self::unavailableExponential($n, 'Se necesitan al menos tres períodos para evaluar una curva exponencial.');
         foreach ($y as $value) {
-            if ($value <= 0.0) return self::unavailableExponential($n, 'El ajuste exponencial requiere ventas estrictamente positivas en todos los períodos del intervalo.');
+            if ($value <= 0.0) return self::unavailableExponential($n, 'El ajuste exponencial requiere valores estrictamente positivos en todos los períodos del intervalo.');
         }
 
         $logs = array_map('log', $y);
@@ -80,7 +80,7 @@ final class AnalyticsModels
             return ['available'=>true,'reason'=>'Los errores RMSE son prácticamente iguales; no hay un ganador claro.','model'=>null];
         }
         $model = (float)$exponential['rmse'] < (float)$linear['rmse'] ? 'exponential' : 'linear';
-        return ['available'=>true,'reason'=>'Se compara RMSE en la escala original de ingresos; menor error describe mejor este intervalo.','model'=>$model];
+        return ['available'=>true,'reason'=>'Se compara RMSE en la escala original de la métrica seleccionada; menor error describe mejor este intervalo.','model'=>$model];
     }
 
     private static function numericValues(array $values): array

@@ -5,10 +5,17 @@ final class AnalyticsRepository
 {
     private const MAX_RANGE_DAYS = 730;
     private const VALID_PERIODS = ['day','week','month'];
+    private const VALID_MODEL_METRICS = ['gross_profit','revenue'];
 
     public function __construct(private PDO $pdo) {}
 
-    public function analyze(?string $fromValue, ?string $toValue, ?string $periodValue): array
+    public function analyze(
+        ?string $fromValue,
+        ?string $toValue,
+        ?string $periodValue,
+        ?string $productValue = null,
+        ?string $metricValue = null
+    ): array
     {
         [$from,$to,$period] = $this->filters($fromValue,$toValue,$periodValue);
         $rangeDays = (int)$from->diff($to)->days + 1;
@@ -20,12 +27,40 @@ final class AnalyticsRepository
         $currentMetrics = $this->metrics($dailyRows);
         $previousMetrics = $this->aggregate($previousStart->format('Y-m-d 00:00:00'),$from->format('Y-m-d 00:00:00'));
 
-        $values = array_map(static fn(array $point): float => (float)$point['revenue_cents'],$series);
+        $products = $this->topProducts($from->format('Y-m-d 00:00:00'),$to->modify('+1 day')->format('Y-m-d 00:00:00'));
+        $productOptions = $this->productOptions();
+        $productOptionsBySku = [];
+        foreach ($productOptions as $option) $productOptionsBySku[$option['sku']] = $option;
+
+        $productError = '';
+        if ($productValue === null) {
+            $selectedSku = $products[0]['sku'] ?? ($productOptions[0]['sku'] ?? null);
+        } elseif ($productValue === 'all') {
+            $selectedSku = null;
+        } elseif (isset($productOptionsBySku[$productValue])) {
+            $selectedSku = $productValue;
+        } else {
+            $selectedSku = $products[0]['sku'] ?? ($productOptions[0]['sku'] ?? null);
+            $productError = 'El producto solicitado no tiene historial confirmado; se muestra el producto más vendido disponible.';
+        }
+
+        $modelMetric = in_array($metricValue,self::VALID_MODEL_METRICS,true) ? $metricValue : 'gross_profit';
+        $modelMetricKey = $modelMetric === 'revenue' ? 'revenue_cents' : 'gross_profit_cents';
+        $trendDailyRows = $selectedSku === null
+            ? $dailyRows
+            : $this->dailyProductSales(
+                $from->format('Y-m-d 00:00:00'),
+                $to->modify('+1 day')->format('Y-m-d 00:00:00'),
+                $selectedSku
+            );
+        $trendSeries = $this->buildSeries($trendDailyRows,$from,$to,$period);
+        $trendMetrics = $this->metrics($trendDailyRows);
+        $values = array_map(static fn(array $point): float => (float)$point[$modelMetricKey],$trendSeries);
         // An empty interval has no observations to model: zero-filled chart buckets are not sales data.
-        $linear = $currentMetrics['confirmed_orders'] > 0
+        $linear = $trendMetrics['confirmed_orders'] > 0
             ? AnalyticsModels::linear($values,3)
             : AnalyticsModels::linear([],3);
-        $exponential = $currentMetrics['confirmed_orders'] > 0
+        $exponential = $trendMetrics['confirmed_orders'] > 0
             ? AnalyticsModels::exponential($values,3)
             : AnalyticsModels::exponential([],3);
         $comparison = AnalyticsModels::compare($linear,$exponential);
@@ -46,12 +81,22 @@ final class AnalyticsRepository
         }
         unset($category);
 
+        $selectedProduct = $selectedSku === null ? null : ($productOptionsBySku[$selectedSku] ?? null);
+
         return [
             'filters'=>['from'=>$from->format('Y-m-d'),'to'=>$to->format('Y-m-d'),'period'=>$period,'range_days'=>$rangeDays],
             'metrics'=>$currentMetrics,
             'previous'=>$previousMetrics,
             'series'=>$series,
-            'products'=>$this->topProducts($from->format('Y-m-d 00:00:00'),$to->modify('+1 day')->format('Y-m-d 00:00:00')),
+            'products'=>$products,
+            'product_options'=>$productOptions,
+            'product_error'=>$productError,
+            'trend'=>[
+                'product'=>$selectedProduct,
+                'metric'=>$modelMetric,
+                'series'=>$trendSeries,
+                'metrics'=>$trendMetrics,
+            ],
             'categories'=>$categories,
             'models'=>['linear'=>$linear,'exponential'=>$exponential,'comparison'=>$comparison],
             'definitions'=>[
@@ -100,6 +145,40 @@ final class AnalyticsRepository
             GROUP BY DATE(o.confirmed_at) ORDER BY sale_day");
         $query->execute([$from,$until]);
         return $query->fetchAll();
+    }
+
+    private function dailyProductSales(string $from, string $until, string $sku): array
+    {
+        $query = $this->pdo->prepare("SELECT DATE(o.confirmed_at) AS sale_day,COUNT(DISTINCT o.id) AS confirmed_orders,
+                COALESCE(SUM(oi.line_total_cents),0) AS revenue_cents,
+                COALESCE(SUM(oi.unit_cost_cents * oi.quantity),0) AS cogs_cents,
+                COALESCE(SUM(oi.quantity),0) AS units
+            FROM orders o JOIN order_items oi ON oi.order_id=o.id
+            WHERE o.status IN ('PAID','FULFILLED') AND o.confirmed_at>=? AND o.confirmed_at<?
+                AND oi.sku_snapshot=?
+                AND EXISTS (SELECT 1 FROM payments p WHERE p.order_id=o.id AND p.status='APPROVED')
+            GROUP BY DATE(o.confirmed_at) ORDER BY sale_day");
+        $query->execute([$from,$until,$sku]);
+        return $query->fetchAll();
+    }
+
+    /** @return list<array{sku:string,name:string}> */
+    private function productOptions(): array
+    {
+        $query = $this->pdo->query("SELECT oi.sku_snapshot AS sku,oi.name_snapshot AS name,MAX(o.confirmed_at) AS last_sale
+            FROM orders o JOIN order_items oi ON oi.order_id=o.id
+            WHERE o.status IN ('PAID','FULFILLED')
+                AND EXISTS (SELECT 1 FROM payments p WHERE p.order_id=o.id AND p.status='APPROVED')
+            GROUP BY oi.sku_snapshot,oi.name_snapshot
+            ORDER BY last_sale DESC,oi.sku_snapshot ASC");
+        $products = [];
+        foreach ($query->fetchAll() as $row) {
+            $sku = (string)$row['sku'];
+            if ($sku !== '' && !isset($products[$sku])) {
+                $products[$sku] = ['sku'=>$sku,'name'=>(string)$row['name']];
+            }
+        }
+        return array_values($products);
     }
 
     private function aggregate(string $from, string $until): array

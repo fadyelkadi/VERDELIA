@@ -1,5 +1,7 @@
 # Pruebas de analítica
 
+Actualización de compatibilidad (2026-11-10): se completó la integración antes pendiente con PHP 8.0.28 y MariaDB: 32 aserciones de analítica, 27 de administración HTTP y 32 de checkout HTTP aprobadas en bases temporales. Esta comprobación sustituye el bloqueo de acceso local descrito al final del reporte; la revisión visual del nuevo panel por SKU sigue pendiente. Detalle en `COMPATIBILIDAD_PHP.md`.
+
 Fecha de ejecución: 2026-11-04. Ambiente: Windows, PHP CLI 8.3.33 con `pdo_mysql`/`curl`, XAMPP MariaDB 10.4.32 local. Las pruebas de integración usaron bases con nombres temporales y las eliminaron al terminar.
 
 ## Resultados
@@ -32,3 +34,10 @@ La copia de demo `database/backups/verdelia_demo.sql` ahora corresponde al respa
 ## Limitaciones
 
 Las pruebas comprueban las consultas y el HTML de la ruta, pero no predicen ventas reales. La serie demo es ficticia. La revisión manual del dashboard administrativo en navegador depende de una sesión admin y no forma parte de la comprobación HTTP automatizada; los modelos se verifican numéricamente y por integración. La prueba física de USB/segunda PC sigue pendiente.
+
+## Adecuación de regresiones por producto — 2026-11-10
+
+- El panel ahora selecciona un SKU con historial de pagos aprobados y ajusta por período los ingresos o la ganancia bruta estimada del producto. La ganancia puede quedar debajo de cero y se modela con regresión lineal.
+- El modelo exponencial conserva la condición matemática de al menos tres observaciones estrictamente positivas. Si existen períodos con cero o pérdida, muestra el motivo y no inventa una curva.
+- `php -l` aprobó los siete archivos PHP modificados y `tests/analytics_models.php` aprobó 27 aserciones. Un smoke test con PDO SQLite en memoria verificó la serie seleccionada, la regresión lineal con pérdidas y ganancias y el ajuste exponencial para ingresos positivos.
+- La integración MariaDB y HTTP de la nueva selección queda pendiente: XAMPP MySQL no estaba activo en el puerto 3306. La inicialización de una instancia MariaDB temporal no fue posible por permisos de Windows al crear su directorio de datos; no se inició ni modificó la base VERDELIA habitual. Los casos para ambas integraciones quedaron añadidos en `tests/analytics_integration.php` y `tests/admin_http_integration.php`.

@@ -31,7 +31,7 @@ final class CheckoutController
         unset($_SESSION['checkout_order_key'], $_SESSION['checkout_order_keys'], $_SESSION['checkout_attempt_keys']);
     }
 
-    public function handleCheckout(string $method, int $userId): never
+    public function handleCheckout(string $method, int $userId): void
     {
         if ($method !== 'POST') {
             http_response_code(405);

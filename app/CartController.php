@@ -5,7 +5,7 @@ final class CartController
 {
     public function __construct(private CartRepository $cart) {}
 
-    public function handle(string $method, ?int $userId): never
+    public function handle(string $method, ?int $userId): void
     {
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store, max-age=0');
@@ -44,7 +44,7 @@ final class CartController
         }
     }
 
-    private function respond(int $status, array $payload): never
+    private function respond(int $status, array $payload): void
     {
         http_response_code($status);
         echo json_encode($payload, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE);
