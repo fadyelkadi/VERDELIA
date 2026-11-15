@@ -39,6 +39,29 @@ try{
   $create=$request($admin,'POST','/admin/productos/guardar',['csrf_token'=>$csrf($productsPage['body']),'sku'=>'HTTP-811','slug'=>'producto-http-admin','name'=>'Producto HTTP Admin','scientific_name'=>'','description'=>'Producto temporal HTTP','category_id'=>'1','price'=>'19.95','cost'=>'7.25','initial_stock'=>'4','light'=>'Indirecta','care_level'=>'Fácil','image'=>'PLA-001-aloe-vera.png','active'=>'1']);
   $assert($create['status']===303&&preg_match('#^/admin/productos/[1-9]\d*/editar$#',$create['location'])===1,'administrador crea producto por HTTP');
   $list=$request($admin,'GET','/admin/productos?q=HTTP-811');$assert($list['status']===200&&str_contains($list['body'],'Producto HTTP Admin'),'producto aparece en listado filtrado');
+  $store = $request($customer, 'GET', '/tienda');
+  $chatToken = $csrf($store['body']);
+  curl_setopt_array($customer, [
+    CURLOPT_URL => $base.'/api/chat',
+    CURLOPT_POST => true,
+    CURLOPT_CUSTOMREQUEST => 'POST',
+    CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/json', 'X-CSRF-Token: '.$chatToken],
+  ]);
+  foreach ([
+    ['¿Cuánto cuesta el Bambú de la Suerte?', '/producto/bambu-de-la-suerte', '$18.00'],
+    ['¿Cuánto cuesta HTTP-811?', '/producto/producto-http-admin', '$19.95'],
+  ] as [$message, $expectedUrl, $expectedPrice]) {
+    curl_setopt($customer, CURLOPT_POSTFIELDS, json_encode(['message' => $message], JSON_THROW_ON_ERROR));
+    $reply = curl_exec($customer);
+    $chat = is_string($reply) ? json_decode($reply, true) : null;
+    $assert(
+      curl_getinfo($customer, CURLINFO_RESPONSE_CODE) === 200
+        && ($chat['ok'] ?? false) === true
+        && ($chat['products'][0]['url'] ?? '') === $expectedUrl
+        && str_contains($chat['message'] ?? '', $expectedPrice),
+      'el chat identifica producto y precio para «'.$message.'»'
+    );
+  }
   $negative=$request($admin,'POST','/admin/productos/guardar',['csrf_token'=>$csrf($list['body']),'sku'=>'HTTP-812','slug'=>'producto-http-negativo','name'=>'Producto negativo','category_id'=>'1','price'=>'-1','cost'=>'1.00','initial_stock'=>'2','image'=>'PLA-001-aloe-vera.png','active'=>'1']);
   $errorPage=$request($admin,'GET',$negative['location']);$assert($errorPage['status']===200&&str_contains($errorPage['body'],'Precio debe ser'),'precio negativo muestra error y no se persiste');
   $csrfToken=$csrf($errorPage['body']);$inventory=$request($admin,'GET','/admin/inventario');preg_match('/name="product_id" value="(\d+)"[^>]*>\s*<input type="hidden" name="sku" value="HTTP-811"[^>]*>\s*<input type="hidden" name="expected_stock" value="(\d+)"/',$inventory['body'],$match);

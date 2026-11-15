@@ -75,16 +75,33 @@ final class ShopChat
 
     private function matchProducts(string $query, array $products): array
     {
-        $query=preg_replace('/\b(cuanto cuesta|cuanto|cual|cuales|es|la|los|las|que|plantas?|son|cuidar|facil|faciles|precio|disponibilidad|disponible|stock|hay|tienen|tiene|consulta|consultar|busco|quiero|por favor|ventas?|demanda|tendencia|proyeccion|estimacion|estimado|prevision|sku|de|del|el|una|un|producto|unidades)\b/u',' ',$query) ?? $query;
-        $query=trim(preg_replace('/\s+/u',' ',$query) ?? $query);
-        $found=[];
+        $nameQuery = $this->productWords($query);
+        $skuMatches = [];
+        $exactNames = [];
+        $partialNames = [];
         foreach ($products as $product) {
-            $sku=$this->normalize((string)$product['sku']);
-            $name=$this->normalize((string)$product['name']);
-            if (preg_match('/^[a-z]{3}-\d{3}$/',$query)===1 && $query===$sku) $found[]=$product;
-            elseif (strlen($query)>=3 && ($query===$name || str_contains($name,$query) || str_contains($query,$name))) $found[]=$product;
+            $sku = $this->normalize((string)$product['sku']);
+            if ($sku !== '' && str_contains(' '.$query.' ', ' '.$sku.' ')) {
+                $skuMatches[] = $product;
+            }
+
+            $fullName = $this->normalize((string)$product['name']);
+            $name = $this->productWords($fullName);
+            if ($query === $fullName || ($name !== '' && $nameQuery === $name)) {
+                $exactNames[] = $product;
+            } elseif (strlen($nameQuery) >= 3 && $name !== ''
+                && (str_contains(' '.$name.' ', ' '.$nameQuery.' ') || str_contains(' '.$nameQuery.' ', ' '.$name.' '))) {
+                $partialNames[] = $product;
+            }
         }
-        return $found;
+
+        return $skuMatches ?: ($exactNames ?: $partialNames);
+    }
+
+    private function productWords(string $text): string
+    {
+        $words = preg_replace('/\b(cuanto cuesta|cuanto|cual|cuales|es|la|los|las|que|plantas?|son|cuidar|facil|faciles|precio|disponibilidad|disponible|stock|hay|tienen|tiene|consulta|consultar|busco|quiero|por favor|ventas?|demanda|tendencia|proyeccion|estimacion|estimado|prevision|sku|de|del|el|una|un|producto|unidades)\b/u', ' ', $text) ?? $text;
+        return trim(preg_replace('/\s+/u', ' ', $words) ?? $words);
     }
 
     private function recommend(array $products, ?string $light, bool $easy): array

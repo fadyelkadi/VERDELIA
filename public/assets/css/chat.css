@@ -34,7 +34,7 @@
 .store-chat-toggle[aria-expanded="true"] .store-chat-toggle-icon { transform: rotate(45deg); }
 @media (max-width: 560px) {
   .store-chat { right: .75rem; bottom: .75rem; }
-  .store-chat-panel { position: fixed; right: .5rem; bottom: 5.2rem; width: calc(100vw - 1rem); max-height: min(72dvh, 590px); }
+  .store-chat-panel { position: fixed; right: .5rem; left: .5rem; bottom: 5.2rem; width: auto; max-height: min(72dvh, 590px); }
   .store-chat-toggle { min-height: 49px; padding-inline: .8rem; }
 }
 @media (prefers-reduced-motion: reduce) {
