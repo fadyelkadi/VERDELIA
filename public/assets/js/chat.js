@@ -139,7 +139,11 @@
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-Token': csrfToken },
-        body: JSON.stringify({ message: prompt, product_context: productContext }),
+        body: JSON.stringify({
+          message: prompt,
+          product_context: productContext,
+          history: conversation.filter(entry => entry.kind === 'user').slice(0, -1).slice(-8).map(entry => entry.text),
+        }),
         credentials: 'same-origin',
         cache: 'no-store',
         signal: controller.signal,

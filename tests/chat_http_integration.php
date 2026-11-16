@@ -42,8 +42,8 @@ $assert = static function (bool $condition, string $name, array $reply = []) use
     }
     $checks++;
 };
-$ask = static function (string $message, ?string $context = null) use ($post, $assert): array {
-    [$status, $reply] = $post(['message'=>$message, 'product_context'=>$context]);
+$ask = static function (string $message, ?string $context = null, array $history = []) use ($post, $assert): array {
+    [$status, $reply] = $post(['message'=>$message, 'product_context'=>$context, 'history'=>$history]);
     $assert($status === 200 && ($reply['ok'] ?? false) === true, 'responde por HTTP: '.$message, $reply);
     return $reply;
 };
@@ -70,8 +70,27 @@ try {
     $dark = $ask('Recomiéndame una planta fácil para un cuarto sin ventanas');
     $assert($paths($dark) === [] && str_contains($dark['message'], 'sin ventanas'), 'no sugiere luz natural inexistente', $dark);
 
+    $humidRequest = 'Tengo una casa cerrada, con poca ventilación y mucha humedad. ¿Qué me recomiendas?';
+    $humidStart = $ask($humidRequest);
+    $assert(str_contains($humidStart['message'], 'mucha humedad') && str_contains($humidStart['message'], 'poca ventilación')
+        && str_contains($humidStart['message'], '¿Qué luz recibe'), 'reconoce el ambiente y pregunta la luz faltante', $humidStart);
+    $lowLightEasy = 'Hay poca luz, no tengo presupuesto. Me gustaría que fuera fácil de cuidar.';
+    $budgetClarifier = $ask($lowLightEasy, null, [$humidRequest]);
+    $assert(str_contains($budgetClarifier['message'], 'no tienes un límite definido')
+        && str_contains($budgetClarifier['message'], 'buscas algo gratis'), 'aclara qué significa no tener presupuesto', $budgetClarifier);
+    $budgetFollowUp = $ask('entre 10 y 20 dólares', null, [$humidRequest, $lowLightEasy]);
+    $assert($paths($budgetFollowUp) === [$sansevieria] && str_contains($budgetFollowUp['message'], '$27.50')
+        && str_contains($budgetFollowUp['message'], 'fuera del rango')
+        && str_contains($budgetFollowUp['message'], 'no registran tolerancia a humedad ni ventilación')
+        && !in_array($aloe, $paths($budgetFollowUp), true) && !in_array($cactus, $paths($budgetFollowUp), true),
+        'conserva criterios y no presenta falsos ajustes al presupuesto o ambiente', $budgetFollowUp);
+    $freshRecommendation = $ask('Recomiéndame una planta para sol directo hasta $20', null, [$humidRequest, $lowLightEasy, 'entre 10 y 20 dólares']);
+    $assert($paths($freshRecommendation) === [$cactus] && !str_contains($freshRecommendation['message'], 'humedad'),
+        'una nueva recomendación empieza con criterios nuevos', $freshRecommendation);
+
     $none = $ask('Recomiéndame una planta para poca luz por menos de 10 dólares');
-    $assert($paths($none) === [] && str_contains($none['message'], 'todos los criterios'), 'no ignora un presupuesto imposible', $none);
+    $assert($paths($none) === [] && str_contains($none['message'], 'cumplan a la vez')
+        && !str_contains($none['message'], 'Encontré estas opciones'), 'no ofrece una alternativa demasiado alejada del presupuesto', $none);
     $inclusive = $ask('Recomienda una planta sin sol directo de hasta $18,00');
     $assert(in_array($bambu, $paths($inclusive), true) && !in_array($monstera, $paths($inclusive), true)
         && str_contains($inclusive['message'], '$18.00'), 'límite inclusivo con decimales', $inclusive);

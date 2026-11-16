@@ -18,8 +18,10 @@ final class ShopChatQuery
     public bool $noLight;
     public bool $noDirect;
     public ?string $light;
+    public bool $lightMentioned;
     public bool $conflictingLight;
     public bool $easy;
+    public bool $easyMentioned;
     public bool $care;
     public bool $watering;
     public bool $trend;
@@ -30,6 +32,13 @@ final class ShopChatQuery
     public ?int $quantity;
     public bool $catalogIntent;
     public bool $recommendation;
+    public ?string $humidity;
+    public bool $humidityMentioned;
+    public bool $conflictingHumidity;
+    public ?string $ventilation;
+    public bool $ventilationMentioned;
+    public bool $conflictingVentilation;
+    public bool $recommendationContextActive = false;
 
     public function __construct(string $message)
     {
@@ -41,7 +50,10 @@ final class ShopChatQuery
 
         $this->petSafety = preg_match('/\b(mascotas?|gat[oa]s?|gatit[oa]s?|gatic[oa]s?|michis?|felin[oa]s?|perr[oa]s?|perrit[oa]s?|cachorr[oa]s?|canin[oa]s?|animales?|conejos?|loros?|aves?|(?:pet|cat|dog)[ -]?(?:friendly|safe)|toxic\w*|venenos[oa]s?)\b/u', $text) === 1;
         $this->noLight = preg_match('/\b(?:sin ventanas?|sin (?:nada de )?luz(?! (?:(?:natural|solar) )?(?:directa|indirecta))|(?<!casi )no (?:entra|tiene|recibe) (?:nada de )?luz(?! (?:(?:natural|solar) )?(?:directa|indirecta)))\b/u', $text) === 1;
-        $this->easy = preg_match('/\b(facil|faciles|sencilla|sencillo|principiantes?|poco cuidado|bajo mantenimiento)\b/u', $text) === 1;
+        $easyNegative = preg_match('/\b(?:no (?:me importa|es necesario|hace falta|tiene que ser)|no importa si (?:es|sea))\s+(?:que sea\s+)?(?:facil|sencill[oa])\b/u', $text) === 1;
+        $easyPositive = preg_match('/\b(facil|faciles|sencilla|sencillo|principiantes?|poco cuidado|bajo mantenimiento)\b/u', $text) === 1;
+        $this->easyMentioned = $easyNegative || $easyPositive;
+        $this->easy = $easyPositive && !$easyNegative;
         $this->watering = preg_match('/\b(riego|regar|riega|regarse|riegue|cuanta agua|frecuencia de riego)\b/u', $text) === 1;
         $this->care = $this->watering || preg_match('/\b(cuidados?|cuidar|cuido|cuida|cuidarla|cuidarlo|mantenimiento)\b/u', $text) === 1;
         $this->trend = preg_match('/\b(ventas?|demanda|tendencia|proyeccion|estimacion|estiman|estimado|prevision|predecir|pronostic\w*|vendera[n]?|venderia[n]?|vendieron)\b/u', $text) === 1;
@@ -55,12 +67,78 @@ final class ShopChatQuery
         $this->unsupportedCurrency = preg_match('/\b(euros?|eur|bolivares?|ves|bs|pesos?|cop|mxn|ars|brl|reales|btc|usdt|moneda local)\b|\b\d+\s+soles\b|€|£/u', $folded) === 1;
         $this->budget = $this->parseBudget($folded);
         $this->quantity = $this->parseQuantity($text);
-        [$this->light, $this->noDirect, $this->conflictingLight] = $this->parseLight($text);
+        [$this->light, $this->noDirect, $this->conflictingLight, $this->lightMentioned] = $this->parseLight($text);
+        $this->lightMentioned = $this->lightMentioned || $this->noLight;
+        [$this->humidity, $this->humidityMentioned, $this->conflictingHumidity] = $this->parseHumidity($text);
+        [$this->ventilation, $this->ventilationMentioned, $this->conflictingVentilation] = $this->parseVentilation($text);
     }
 
     public function hasRecommendationCriteria(): bool
     {
         return $this->light !== null || $this->noDirect || $this->easy || $this->budget !== null;
+    }
+
+    public function hasEnvironmentCriteria(): bool
+    {
+        return $this->humidityMentioned || $this->ventilationMentioned;
+    }
+
+    public function hasRecommendationContext(): bool
+    {
+        return $this->hasRecommendationCriteria() || $this->hasEnvironmentCriteria();
+    }
+
+    public function mergeRecommendationPreferencesFrom(self $other): void
+    {
+        if ($other->lightMentioned) {
+            $this->light = $other->light;
+            $this->noDirect = $other->noDirect;
+            $this->noLight = $other->noLight;
+            $this->conflictingLight = $other->conflictingLight;
+            $this->lightMentioned = true;
+        }
+        if ($other->easyMentioned) {
+            $this->easy = $other->easy;
+            $this->easyMentioned = true;
+        }
+        if ($other->budget !== null) $this->budget = $other->budget;
+        if ($other->humidityMentioned) {
+            $this->humidity = $other->humidity;
+            $this->humidityMentioned = true;
+            $this->conflictingHumidity = $other->conflictingHumidity;
+        }
+        if ($other->ventilationMentioned) {
+            $this->ventilation = $other->ventilation;
+            $this->ventilationMentioned = true;
+            $this->conflictingVentilation = $other->conflictingVentilation;
+        }
+    }
+
+    public function inheritRecommendationPreferences(self $context): void
+    {
+        if (!$this->lightMentioned && $context->lightMentioned) {
+            $this->light = $context->light;
+            $this->noDirect = $context->noDirect;
+            $this->noLight = $context->noLight;
+            $this->conflictingLight = $context->conflictingLight;
+            $this->lightMentioned = true;
+        }
+        if (!$this->easyMentioned && $context->easyMentioned) {
+            $this->easy = $context->easy;
+            $this->easyMentioned = true;
+        }
+        if ($this->budget === null) $this->budget = $context->budget;
+        if (!$this->humidityMentioned && $context->humidityMentioned) {
+            $this->humidity = $context->humidity;
+            $this->humidityMentioned = true;
+            $this->conflictingHumidity = $context->conflictingHumidity;
+        }
+        if (!$this->ventilationMentioned && $context->ventilationMentioned) {
+            $this->ventilation = $context->ventilation;
+            $this->ventilationMentioned = true;
+            $this->conflictingVentilation = $context->conflictingVentilation;
+        }
+        $this->recommendationContextActive = true;
     }
 
     public function followsKnownProduct(): bool
@@ -109,7 +187,24 @@ final class ShopChatQuery
         $modes = array_keys(array_filter(['low'=>$low, 'medium'=>$medium, 'direct'=>$direct, 'bright'=>$bright && !$direct]));
         $mixed = count($modes) > 1 || ($noDirect && $direct)
             || ($negated !== [] && ($modes === [] || array_intersect($modes, $negated) !== []));
-        return [$modes[0] ?? null, $noDirect, $mixed];
+        $mentioned = $noDirect || preg_match('/\b'.self::DIRECT_LIGHT.'\b|\b'.self::LOW_LIGHT.'\b|\b'.self::MEDIUM_LIGHT.'\b|\b'.self::BRIGHT_LIGHT.'\b/u', $text) === 1;
+        return [$modes[0] ?? null, $noDirect, $mixed, $mentioned];
+    }
+
+    private function parseHumidity(string $text): array
+    {
+        $high = preg_match('/\b(?:mucha|alta|elevada|bastante)\s+humed(?:ad|a|o)\b|\bambiente\s+humedo\b/u', $text) === 1;
+        $low = preg_match('/\b(?:poca|baja|escasa)\s+humedad\b|\bambiente\s+sec[oa]s?\b/u', $text) === 1;
+        $mentioned = $high || $low;
+        return [$high === $low ? null : ($high ? 'high' : 'low'), $mentioned, $high && $low];
+    }
+
+    private function parseVentilation(string $text): array
+    {
+        $poor = preg_match('/\b(?:poca|mala|escasa|sin)\s+ventilacion\b|\b(?:mal|poco)\s+ventilad[oa]s?\b|\b(?:casa|cuarto|habitacion|ambiente)\s+cerrad[oa]s?\b/u', $text) === 1;
+        $good = preg_match('/\b(?:buena|mucha)\s+ventilacion\b|\bbien\s+ventilad[oa]s?\b|\b(?:buen|buena)\s+(?:flujo|circulacion)\s+de\s+aire\b/u', $text) === 1;
+        $mentioned = $poor || $good;
+        return [$poor === $good ? null : ($poor ? 'poor' : 'good'), $mentioned, $poor && $good];
     }
 
     /** null: no budget. Empty array: a monetary condition could not be read. */

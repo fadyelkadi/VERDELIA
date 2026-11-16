@@ -36,12 +36,28 @@ final class ShopChat
         if ($message === '' || strlen($message) > self::MAX_MESSAGE_BYTES || preg_match('//u',$message)!==1) {
             $this->respond(400, ['ok'=>false,'message'=>'La consulta debe tener entre 1 y 2000 bytes y usar texto válido.']);
         }
+        $history = $payload['history'] ?? [];
+        if (!is_array($history) || count($history) > 8) {
+            $this->respond(400, ['ok'=>false,'message'=>'El historial de conversación no es válido.']);
+        }
+        $cleanHistory = [];
+        foreach ($history as $entry) {
+            if (!is_string($entry)) $this->respond(400, ['ok'=>false,'message'=>'El historial de conversación no es válido.']);
+            $entry = trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u','',$entry) ?? '');
+            if ($entry === '' || strlen($entry) > 1200 || preg_match('//u',$entry)!==1) {
+                $this->respond(400, ['ok'=>false,'message'=>'Un mensaje anterior del historial no es válido.']);
+            }
+            $cleanHistory[] = $entry;
+        }
         $reference = $payload['product_context'] ?? null;
         if (!is_string($reference) || !preg_match('/^[a-z0-9-]{1,120}$/D', $reference)) {
             $reference = null;
         }
         try {
-            $answer = $this->answer(new ShopChatQuery($message), $this->catalog->chatProducts(), $reference);
+            $products = $this->catalog->chatProducts();
+            $query = new ShopChatQuery($message);
+            $this->inheritRecommendationHistory($query, $cleanHistory, $products);
+            $answer = $this->answer($query, $products, $reference);
             $this->respond(200, ['ok'=>true] + $answer + ['product_context'=>null]);
         } catch (Throwable $exception) {
             verdelia_log_error($exception,'shop-chat');
@@ -63,14 +79,26 @@ final class ShopChat
         if ($query->unsupportedCurrency) {
             return ['message'=>'El catálogo muestra los precios en dólares estadounidenses (USD). Indícame el importe en USD.'];
         }
+        if ($query->conflictingHumidity) {
+            return ['message'=>'Mencionaste humedad alta y baja. ¿El ambiente suele ser húmedo o seco?'];
+        }
+        if ($query->conflictingVentilation) {
+            return ['message'=>'Mencionaste ventilación buena y escasa. ¿El espacio está bien ventilado o es cerrado?'];
+        }
         if ($query->budget === []) {
-            return ['message'=>'¿Cuál es tu presupuesto en USD? Puedes escribir «menos de $20», «hasta $20» o «entre $10 y $20».'];
+            return ['message'=>'¿Quieres decir que no tienes un límite definido o que buscas algo gratis? Si tienes un rango, puedes escribir «entre $10 y $20».'];
         }
         if (preg_match('/\b(envios?|enviar|despachos?|delivery|flete)\b/u', $query->text)) {
             return ['message'=>'El asistente no tiene información confirmada sobre tarifas o destinos de envío. Puedo consultar el precio y la disponibilidad de los productos.'];
         }
         if ($query->trend && $query->hasRecommendationCriteria()) {
             return ['message'=>'Puedo estimar la demanda de un producto o recomendar plantas por sus condiciones. ¿Qué quieres consultar primero?'];
+        }
+        if ($query->recommendation && !$query->hasRecommendationCriteria() && !$query->recommendationContextActive) {
+            return ['message'=>$this->recommendationClarifier($query)];
+        }
+        if ($query->recommendationContextActive && !$query->hasRecommendationCriteria()) {
+            return ['message'=>$this->recommendationClarifier($query)];
         }
 
         $excluded = array_column($this->matchProducts($query->excludedText, $products), 'id');
@@ -105,7 +133,7 @@ final class ShopChat
         }
         if ($query->care && !$query->hasRecommendationCriteria()) return ['message'=>'¿Qué planta quieres cuidar? Dime el nombre o SKU para revisar qué indica su ficha.'];
         if ($query->followsKnownProduct()) return ['message'=>'¿De qué producto? Dime su nombre o SKU para revisar el catálogo.'];
-        if ($query->hasRecommendationCriteria()) {
+        if ($query->hasRecommendationCriteria() || $query->recommendationContextActive) {
             if ($query->catalogIntent && !$query->recommendation && $query->light === null && !$query->easy && !$query->noDirect) {
                 return ['message'=>'¿De qué producto quieres consultar el precio? Dime su nombre o SKU. Si quieres que busque plantas dentro del presupuesto, pídeme una recomendación.'];
             }
@@ -120,6 +148,51 @@ final class ShopChat
         }
         if ($query->recommendation) return ['message'=>'¿Cómo es la luz donde pondrás la planta? También puedes indicar tu presupuesto o si buscas una de cuidado fácil.'];
         return ['message'=>'Puedo consultar precios, existencias y fichas del catálogo, recomendar plantas según la luz y el presupuesto, o estimar su demanda. Por ejemplo: «¿Hay Monstera?», «una planta para poca luz» o «ventas de PLA-006».'];
+    }
+
+    private function inheritRecommendationHistory(ShopChatQuery $query, array $history, array $products): void
+    {
+        if ($history === [] || $query->recommendation || $query->trend || !$query->hasRecommendationContext()
+            || $this->matchProducts($query->productText, $products) !== []) {
+            return;
+        }
+
+        $active = false;
+        $segment = [];
+        foreach ($history as $message) {
+            $previous = new ShopChatQuery($message);
+            if ($previous->recommendation) {
+                $active = true;
+                $segment = [$previous];
+                continue;
+            }
+            if (!$active) continue;
+            if ($previous->trend || $this->matchProducts($previous->productText, $products) !== [] || !$previous->hasRecommendationContext()) {
+                $active = false;
+                $segment = [];
+                continue;
+            }
+            $segment[] = $previous;
+        }
+        if (!$active || $segment === []) return;
+
+        $context = new ShopChatQuery('');
+        foreach ($segment as $previous) $context->mergeRecommendationPreferencesFrom($previous);
+        $query->inheritRecommendationPreferences($context);
+    }
+
+    private function recommendationClarifier(ShopChatQuery $query): string
+    {
+        $message = '¿Qué luz recibe el espacio: poca luz natural, luz indirecta o sol directo? También puedes decirme si prefieres una planta fácil de cuidar y tu rango de precio.';
+        if ($query->hasEnvironmentCriteria()) {
+            $conditions = [];
+            if ($query->humidity === 'high') $conditions[] = 'mucha humedad';
+            elseif ($query->humidity === 'low') $conditions[] = 'ambiente seco';
+            if ($query->ventilation === 'poor') $conditions[] = 'poca ventilación';
+            elseif ($query->ventilation === 'good') $conditions[] = 'buena ventilación';
+            $message = 'Tendré en cuenta que el espacio tiene '.implode(' y ', $conditions).'. El catálogo no contiene datos para confirmar tolerancia a esas condiciones. '.$message;
+        }
+        return $message;
     }
 
     private function matchProducts(string $query, array $products): array
@@ -263,7 +336,7 @@ final class ShopChat
         }
         usort($ranked, static fn(array $a, array $b): int => ($b['score'] <=> $a['score']) ?: strcmp($a['product']['name'], $b['product']['name']));
         $ranked = array_slice($ranked, 0, 3);
-        if ($ranked === []) return ['message'=>'No encontré plantas disponibles que cumplan todos los criterios que indicaste.'];
+        if ($ranked === []) return $this->noRecommendationMatch($products, $query);
         $names = [];
         $results = [];
         foreach ($ranked as $item) {
@@ -280,7 +353,47 @@ final class ShopChat
         if ($query->easy) $criteria[] = 'de cuidado fácil';
         if ($query->budget !== null) $criteria[] = 'dentro de tu presupuesto';
         if ($query->quantity !== null && $query->quantity > 1) $criteria[] = 'con al menos '.$query->quantity.' unidades disponibles';
-        return ['message'=>'Encontré estas opciones ('.implode(', ', $criteria)."):\n".implode("\n", $names), 'products'=>$results];
+        $message = 'Encontré estas opciones que coinciden con los datos del catálogo ('.implode(', ', $criteria)."):\n".implode("\n", $names);
+        $message .= $this->environmentCaveat($query);
+        return ['message'=>$message, 'products'=>$results];
+    }
+
+    private function noRecommendationMatch(array $products, ShopChatQuery $query): array
+    {
+        $alternatives = [];
+        foreach ($products as $product) {
+            $category = ShopChatQuery::normalize($product['category'].' '.$product['category_name']);
+            if ((int)$product['stock'] < max(1, $query->quantity ?? 0) || preg_match('/\b(accesorios?|macetas?)\b/u', $category)) continue;
+            if ($query->easy && ShopChatQuery::normalize((string)$product['care_level']) !== 'facil') continue;
+            if ($this->lightScore($product, $query) <= 0) continue;
+            if ($query->budget !== null) {
+                if ($this->fitsBudget($product, $query->budget)) continue;
+                $price = (int)$product['price_cents'];
+                $distance = $price < ($query->budget['min'] ?? 0)
+                    ? ($query->budget['min'] - $price)
+                    : ($price - ($query->budget['max'] ?? PHP_INT_MAX));
+                if ($distance > 1000) continue;
+            }
+            $alternatives[] = ['score'=>$this->lightScore($product, $query), 'product'=>$product];
+        }
+        usort($alternatives, static fn(array $a, array $b): int => ($b['score'] <=> $a['score']) ?: strcmp($a['product']['name'], $b['product']['name']));
+
+        $message = 'No encontré plantas disponibles que cumplan a la vez la luz, el cuidado y el precio que indicaste.';
+        $productsForLinks = [];
+        if ($alternatives !== []) {
+            $alternative = $alternatives[0]['product'];
+            $message .= ' La opción más cercana por luz y cuidado es '.$this->productLabel($alternative).', pero cuesta '.$this->money((int)$alternative['price_cents']).' USD y queda fuera del rango.';
+            $productsForLinks[] = $this->publicProduct($alternative);
+        }
+        $message .= $this->environmentCaveat($query);
+        $message .= ' Puedes ampliar el presupuesto o relajar algún criterio para ver otras opciones.';
+        return ['message'=>$message, 'products'=>$productsForLinks];
+    }
+
+    private function environmentCaveat(ShopChatQuery $query): string
+    {
+        if (!$query->hasEnvironmentCriteria()) return '';
+        return ' Las fichas no registran tolerancia a humedad ni ventilación; esa compatibilidad no está confirmada.';
     }
 
     private function lightScore(array $product, ShopChatQuery $query): float
