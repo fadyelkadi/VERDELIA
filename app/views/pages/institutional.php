@@ -46,6 +46,28 @@
       <button class="button button-primary" type="submit">Revisar mensaje <?= icon('arrow',16) ?></button>
       <p class="form-feedback" data-form-feedback role="status" aria-live="polite"></p>
     </form>
+    <section class="contact-team" aria-labelledby="contact-team-title">
+      <p class="eyebrow">Diseño y desarrollo</p>
+      <h2 id="contact-team-title">Equipo de VERDELIA</h2>
+      <ul class="contact-team-list">
+        <li>
+          <strong>Fady El Kadi</strong>
+          <a href="mailto:fadyelkadi.17@gmail.com">fadyelkadi.17@gmail.com</a>
+        </li>
+        <li>
+          <strong>César Medina</strong>
+          <a href="mailto:Cesar123@gmail.com">Cesar123@gmail.com</a>
+        </li>
+        <li>
+          <strong>Udon Sandrea</strong>
+          <a href="mailto:udonandres@gmail.com">udonandres@gmail.com</a>
+        </li>
+        <li>
+          <strong>Luis Gonzalez</strong>
+          <a href="mailto:luismario2502@gmail.com">luismario2502@gmail.com</a>
+        </li>
+      </ul>
+    </section>
   </section>
 <?php elseif($route==='faq'): ?>
   <section class="faq-page page-gutter"><p class="eyebrow">Respuestas sencillas</p><h1>Preguntas<br><em>frecuentes.</em></h1><p class="faq-intro">Información sobre la colección, el carrito y los pedidos.</p><div class="faq-list"><details><summary>¿Puedo hacer una compra real?<span aria-hidden="true">+</span></summary><p>Puedes recorrer el proceso de compra con el simulador de pago. El pedido no genera un cobro ni un envío.</p></details><details><summary>¿Las imágenes representan exactamente cada planta?<span>+</span></summary><p>Son imágenes ilustrativas. El tamaño, el color y otros detalles pueden variar.</p></details><details><summary>¿Cómo elijo una planta para mi espacio?<span>+</span></summary><p>Considera primero la luz disponible, el espacio y el tiempo que puedes dedicarle. Usa la información de luz y cuidados de la ficha como punto de partida.</p></details><details><summary>¿El carrito conserva mis productos?<span>+</span></summary><p>Para visitantes se conserva en la sesión del navegador; si inicias sesión, se fusiona con tu carrito guardado en la base de datos y se mantiene entre visitas.</p></details><details><summary>¿Qué ocurre con un pago?</summary><p>El simulador permite aprobar, rechazar o cancelar un pedido. No solicita tarjetas o credenciales de PayPal ni se conecta a una entidad financiera.</p></details></div><a class="button button-outline" href="/contacto">Otra consulta <?= icon('arrow',16) ?></a></section>
