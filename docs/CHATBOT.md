@@ -5,8 +5,24 @@ El chat de la tienda funciona con el catálogo y el historial de VERDELIA. Los v
 - «¿Cuánto cuesta la Monstera?» consulta el precio vigente de la ficha.
 - «¿Hay stock de Sansevieria?» consulta las unidades disponibles.
 - «¿Y cuántas quedan?» usa el último producto identificado. La conversación se conserva al navegar por la tienda en la misma pestaña.
-- «Recomiéndame una planta sin sol directo por menos de $20» filtra por luz y presupuesto en USD. Si ninguna planta cumple las condiciones, el chat lo indica.
+- «Quiero una planta» o «Busco una maceta» muestra opciones disponibles en el primer mensaje. Cada recomendación incluye una imagen, descripción, datos de la ficha y enlace al producto. Si falta un dato útil, el chat hace una pregunta opcional al final y aprovecha la respuesta para filtrar las opciones.
+- Si prefieres no indicar un presupuesto, el asistente conserva los demás criterios y muestra las opciones sin aplicar un límite de precio. Las fichas solo presentan las medidas y condiciones que constan en el catálogo.
+- «Recomiéndame una planta sin sol directo por menos de $20» filtra por luz, presupuesto en USD y existencias. Cada recomendación muestra precio y unidades disponibles.
+- «Quiero una maceta barata» ordena los artículos disponibles por precio. También puedes indicar tamaño y cantidad; si escribes «en total», compara el presupuesto con el subtotal y lo muestra.
+- Puedes elegir una tarjeta con «la primera», «la segunda» o «la opción 2» y luego pedir precio, stock o comparar cuidados.
+- Las preguntas combinadas sobre producto, precio, existencias y envío se responden con los datos confirmados; si faltan tarifas o destinos de envío, el asistente lo aclara.
+- «No tengo presupuesto» se interpreta como que no se indicó un límite; «gratis» sí significa que el precio debe ser cero. El chat conserva y actualiza estas preferencias durante la conversación.
+- «Quiero una maceta irrompible» muestra macetas disponibles, pero aclara si el catálogo no documenta su resistencia. También corrige algunas erratas comunes, como «meceta».
+- Si alguien pregunta por cannabis, el asistente aclara que VERDELIA no lo comercializa. Cuando conoce la luz del espacio, ofrece alternativas ornamentales disponibles del catálogo.
+- Un patio o jardín sin otra indicación se trata como un espacio con luz brillante; una condición explícita, como «poca luz», tiene prioridad.
+- Si ninguna planta cumple las condiciones, el chat lo indica en vez de sugerir productos agotados o inventar compatibilidades.
+- Si preguntan por una región de origen, como la Amazonía, el chat no muestra plantas al azar: las fichas actuales no guardan procedencia geográfica, así que aclara que no puede verificarla.
 - Para consultas sobre seguridad de mascotas o cuidados que la ficha no especifica, el chat explica qué información falta.
+- Si una mascota o un niño ingirió una planta, el chat indica buscar ayuda veterinaria o médica/toxicológica de inmediato; no diagnostica. Para preguntas de seguridad de bebés o niños, no afirma que una especie sea segura sin datos verificados.
+- El chat no promete que las plantas curen enfermedades, eliminen moho o humedad, ni que sobrevivan a temperaturas extremas que el catálogo no documenta.
+- Si se pregunta por retiro en tienda, el stock en línea no se presenta como confirmación de horario o disponibilidad para hoy. El asistente tampoco crea ni reserva pedidos: dirige al cliente al carrito y al checkout.
+- Si el mensaje afirma a la vez que no hay límite de precio y que sí existe un máximo, el asistente pide elegir qué criterio usar antes de recomendar.
+- Si no encuentra una planta que cumpla los criterios, describe solo los criterios que la persona indicó y no atribuye fallos a preferencias que no mencionó.
 - «¿Cuál es la tendencia de demanda del Aloe?» usa regresión lineal sobre seis meses completos de ventas confirmadas y estima el primer mes posterior a ese historial. Si faltan observaciones o se pide otro período, el chat lo indica. El historial inicial contiene pedidos con pago simulado.
 
 ## Ejecutar en Windows
