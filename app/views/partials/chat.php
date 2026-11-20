@@ -6,10 +6,10 @@
       </div>
       <button class="store-chat-close" type="button" data-chat-close aria-label="Cerrar asistente">×</button>
     </header>
-    <p class="store-chat-intro">Consulta plantas, disponibilidad y cuidados.</p>
+    <p class="store-chat-intro">Pregunta por productos, cuidados y compras.</p>
     <div class="store-chat-messages" data-chat-messages role="log" aria-label="Conversación" aria-live="polite" aria-relevant="additions text">
       <article class="store-chat-message store-chat-message-assistant" data-chat-entry>
-        <p>Hola. ¿Qué te gustaría saber del catálogo?</p>
+        <p>Hola. ¿Qué te gustaría saber de VERDELIA?</p>
       </article>
     </div>
     <div class="store-chat-suggestions" data-chat-suggestions aria-label="Consultas rápidas">
@@ -17,7 +17,8 @@
       <button type="button" data-chat-prompt="¿Qué plantas son fáciles de cuidar?">Fáciles de cuidar</button>
       <button type="button" data-chat-prompt="¿Hay disponibilidad de Monstera?">Consultar Monstera</button>
       <button type="button" data-chat-prompt="Quiero una maceta">Ver macetas</button>
-      <button type="button" data-chat-prompt="Tendencia de demanda del Aloe">Demanda del Aloe</button>
+      <button type="button" data-chat-prompt="¿Qué es VERDELIA?">Sobre VERDELIA</button>
+      <button type="button" data-chat-prompt="¿Cómo hago un pedido?">Cómo comprar</button>
     </div>
     <form class="store-chat-form" data-chat-form>
       <label class="visually-hidden" for="store-chat-input">Escribe tu consulta</label>

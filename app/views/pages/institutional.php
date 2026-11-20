@@ -12,8 +12,19 @@
       </div>
     </div>
   </section>
-  <section class="about-grid page-gutter"><div><p class="eyebrow">Nuestra mirada</p><h2>Lo natural, a tu propio ritmo.</h2></div><div><p>Imaginamos Verdelia como un pequeño estudio donde encontrar plantas, recipientes y consejos sencillos para empezar a crear un rincón verde, sin reglas complicadas.</p><a class="text-link" href="/tienda">Explora la colección <?= icon('arrow',16) ?></a></div></section>
-  <section class="values-band page-gutter"><div><span>01</span><h3>Elegir con intención</h3><p>Piezas y plantas seleccionadas por su forma, textura y carácter.</p></div><div><span>02</span><h3>Aprender sin prisa</h3><p>Información clara para acompañar cada nuevo brote.</p></div><div><span>03</span><h3>Hacer espacio</h3><p>Ideas para sumar naturaleza a los espacios cotidianos.</p></div></section>
+  <section class="about-grid page-gutter">
+    <div><h2>Nuestra historia</h2></div>
+    <div><p><?= h(StoreInformation::HISTORY) ?></p><h3>Nuestra misión</h3><p><?= h(StoreInformation::MISSION) ?></p><h3>Nuestra visión</h3><p><?= h(StoreInformation::VISION) ?></p><a class="text-link" href="/tienda">Explora la colección <?= icon('arrow',16) ?></a></div>
+  </section>
+  <section class="values-band page-gutter" aria-label="Nuestros valores">
+    <?php foreach (StoreInformation::VALUES as $title => $description): ?>
+      <div><h3><?= h($title) ?></h3><p><?= h($description) ?></p></div>
+    <?php endforeach; ?>
+  </section>
+  <section class="about-grid page-gutter">
+    <div><h2>Cómo funciona la tienda</h2></div>
+    <div><p><?= h(StoreInformation::PURCHASE) ?></p><p><?= h(StoreInformation::SHIPPING) ?></p><a class="text-link" href="/preguntas-frecuentes">Preguntas frecuentes <?= icon('arrow',16) ?></a> <a class="text-link" href="/contacto">Conoce al equipo <?= icon('arrow',16) ?></a></div>
+  </section>
 <?php elseif($route==='contact'): ?>
   <section class="contact-page page-gutter">
     <div class="contact-intro">
@@ -35,7 +46,7 @@
     <form class="contact-form" data-contact-form aria-labelledby="contact-form-title">
       <div class="contact-form-heading">
         <h2 id="contact-form-title">Revisa tu mensaje</h2>
-        <p>El formulario revisa los campos en tu navegador. El envío de mensajes no está disponible.</p>
+        <p><?= h(StoreInformation::CONTACT) ?> El envío desde el formulario no está disponible.</p>
       </div>
       <div class="contact-fields">
         <label class="field-label" for="contact-name">Tu nombre<input class="text-input" id="contact-name" autocomplete="name" required></label>
@@ -50,27 +61,22 @@
       <p class="eyebrow">Diseño y desarrollo</p>
       <h2 id="contact-team-title">Equipo de VERDELIA</h2>
       <ul class="contact-team-list">
-        <li>
-          <strong>Fady El Kadi</strong>
-          <a href="mailto:fadyelkadi.17@gmail.com">fadyelkadi.17@gmail.com</a>
-        </li>
-        <li>
-          <strong>César Medina</strong>
-          <a href="mailto:Cesar123@gmail.com">Cesar123@gmail.com</a>
-        </li>
-        <li>
-          <strong>Udon Sandrea</strong>
-          <a href="mailto:udonandres@gmail.com">udonandres@gmail.com</a>
-        </li>
-        <li>
-          <strong>Luis Gonzalez</strong>
-          <a href="mailto:luismario2502@gmail.com">luismario2502@gmail.com</a>
-        </li>
+        <?php foreach (StoreInformation::TEAM as $name => $email): ?>
+          <li><strong><?= h($name) ?></strong><a href="mailto:<?= h($email) ?>"><?= h($email) ?></a></li>
+        <?php endforeach; ?>
       </ul>
     </section>
   </section>
 <?php elseif($route==='faq'): ?>
-  <section class="faq-page page-gutter"><p class="eyebrow">Respuestas sencillas</p><h1>Preguntas<br><em>frecuentes.</em></h1><p class="faq-intro">Información sobre la colección, el carrito y los pedidos.</p><div class="faq-list"><details><summary>¿Puedo hacer una compra real?<span aria-hidden="true">+</span></summary><p>Puedes recorrer el proceso de compra con el simulador de pago. El pedido no genera un cobro ni un envío.</p></details><details><summary>¿Las imágenes representan exactamente cada planta?<span>+</span></summary><p>Son imágenes ilustrativas. El tamaño, el color y otros detalles pueden variar.</p></details><details><summary>¿Cómo elijo una planta para mi espacio?<span>+</span></summary><p>Considera primero la luz disponible, el espacio y el tiempo que puedes dedicarle. Usa la información de luz y cuidados de la ficha como punto de partida.</p></details><details><summary>¿El carrito conserva mis productos?<span>+</span></summary><p>Para visitantes se conserva en la sesión del navegador; si inicias sesión, se fusiona con tu carrito guardado en la base de datos y se mantiene entre visitas.</p></details><details><summary>¿Qué ocurre con un pago?</summary><p>El simulador permite aprobar, rechazar o cancelar un pedido. No solicita tarjetas o credenciales de PayPal ni se conecta a una entidad financiera.</p></details></div><a class="button button-outline" href="/contacto">Otra consulta <?= icon('arrow',16) ?></a></section>
+  <section class="faq-page page-gutter">
+    <h1>Preguntas<br><em>frecuentes.</em></h1><p class="faq-intro">Información sobre la colección, el carrito y los pedidos.</p>
+    <div class="faq-list">
+      <?php foreach (StoreInformation::faq() as $question => $answer): ?>
+        <details><summary><?= h($question) ?><span aria-hidden="true">+</span></summary><p><?= h($answer) ?></p></details>
+      <?php endforeach; ?>
+    </div>
+    <a class="button button-outline" href="/contacto">Otra consulta <?= icon('arrow',16) ?></a>
+  </section>
 <?php else: ?>
-  <section class="privacy-page page-gutter"><h1>Privacidad</h1><div class="privacy-copy"><p>VERDELIA guarda las cuentas, los carritos, los pedidos y las referencias de pago simulado en su base de datos. La sesión utiliza una cookie para mantener el acceso y reconocer tu carrito.</p><p>Usa datos de ejemplo para la entrega. El simulador no solicita datos financieros, no contacta con servicios de pago y no realiza cobros.</p><a class="text-link" href="/">Volver al inicio <?= icon('arrow',16) ?></a></div></section>
+  <section class="privacy-page page-gutter"><h1>Privacidad</h1><div class="privacy-copy"><p><?= h(StoreInformation::PRIVACY) ?></p><p>Usa datos de ejemplo para la entrega. <?= h(StoreInformation::PAYMENT) ?></p><a class="text-link" href="/">Volver al inicio <?= icon('arrow',16) ?></a></div></section>
 <?php endif; ?>

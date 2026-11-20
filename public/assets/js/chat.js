@@ -23,6 +23,9 @@
     ['/preguntas-frecuentes', 'Ver preguntas frecuentes'],
     ['/cuenta/pedidos', 'Ver mis pedidos'],
     ['/registro', 'Crear cuenta'],
+    ['/nosotros', 'Conocer VERDELIA'],
+    ['/carrito', 'Ver carrito'],
+    ['/privacidad', 'Ver privacidad'],
   ]);
   const timeoutMs = 8000;
   const defaultPrompts = [
@@ -30,7 +33,8 @@
     ['¿Qué plantas son fáciles de cuidar?', 'Fáciles de cuidar'],
     ['¿Hay disponibilidad de Monstera?', 'Consultar Monstera'],
     ['Quiero una maceta', 'Ver macetas'],
-    ['Tendencia de demanda del Aloe', 'Demanda del Aloe'],
+    ['¿Qué es VERDELIA?', 'Sobre VERDELIA'],
+    ['¿Cómo hago un pedido?', 'Cómo comprar'],
   ];
   let conversation = [];
   let productContext = null;
@@ -214,6 +218,22 @@
     suggestions.append(reset);
   };
 
+  const refreshPrompts = () => {
+    if (productOptions.length === 1) {
+      setPrompts([
+        ['Cuéntame más sobre este producto', 'Sobre el producto'],
+        ['¿Cuánto cuesta este producto y cuántas unidades quedan?', 'Precio y stock'],
+      ]);
+    } else if (productOptions.length > 1) {
+      setPrompts([
+        ['¿Cuál es la más económica?', 'Ordenar por precio'],
+        ['¿Cuál requiere menos cuidado?', 'Comparar cuidados'],
+      ]);
+    } else {
+      setPrompts(defaultPrompts);
+    }
+  };
+
   const resetConversation = () => {
     if (busy) return;
     conversation = [];
@@ -222,7 +242,7 @@
     messages.querySelectorAll('[data-chat-entry]').forEach(entry => entry.remove());
     try { sessionStorage.removeItem(storageKey); } catch { /* El chat sigue disponible sin almacenamiento. */ }
     setPrompts(defaultPrompts);
-    appendMessage('Hola. ¿Qué te gustaría saber del catálogo?', 'assistant').dataset.chatEntry = '';
+    appendMessage('Hola. ¿Qué te gustaría saber de VERDELIA?', 'assistant').dataset.chatEntry = '';
   };
 
   const restoreConversation = () => {
@@ -244,9 +264,7 @@
       productOptions = productLinks(saved.productOptions);
       messages.querySelectorAll('[data-chat-entry]').forEach(entry => entry.remove());
       conversation.forEach(renderEntry);
-      if (productOptions.length) {
-        setPrompts([['¿Cuál es la más económica?', 'Ordenar por precio'], ['¿Cuál requiere menos cuidado?', 'Comparar cuidados']]);
-      }
+      refreshPrompts();
     } catch {
       // A missing or invalid saved conversation can be skipped.
     }
@@ -313,11 +331,7 @@
         storeLink: storePages.has(result.store_link) ? result.store_link : '',
         followUp: typeof result.follow_up === 'string' ? result.follow_up.slice(0, 240) : '',
       });
-      if (productOptions.length) {
-        setPrompts([['¿Cuál es la más económica?', 'Ordenar por precio'], ['¿Cuál requiere menos cuidado?', 'Comparar cuidados']]);
-      } else {
-        setPrompts(defaultPrompts);
-      }
+      refreshPrompts();
     } catch {
       pending.remove();
       input.value = prompt;
