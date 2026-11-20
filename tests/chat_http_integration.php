@@ -164,7 +164,7 @@ try {
     $unknown = $ask('¿Y cuántas quedan de Jazmín?', $named['product_context']);
     $assert($paths($unknown) === [], 'no usa un contexto obsoleto para un producto explícito desconocido', $unknown);
     $care = $ask('¿Cada cuánto riego la Monstera?');
-    $assert($paths($care) === [$monstera] && str_contains($care['message'], 'no especifica cada cuánto regarla'), 'no inventa consejos de riego', $care);
+    $assert($paths($care) === [$monstera] && str_contains($care['message'], 'los primeros centímetros del sustrato estén secos'), 'consulta la guía de riego de la Monstera', $care);
     foreach (['¿Tienen 20 monsteras?', '¿Tienen 20 de PLA-006?'] as $message) {
         $stock = $ask($message);
         $assert($paths($stock) === [$monstera] && str_contains($stock['message'], 'No hay 20 unidades'), 'cantidad mayor que la existencia', $stock);
@@ -345,11 +345,63 @@ try {
     $explain = $ask('¿Y cómo llegaron a ese número?', $forecast['product_context']);
     $assert(str_contains($explain['message'], 'seis meses completos'), 'explica el cálculo como seguimiento', $explain);
 
+    $lowLight = $ask('Recomiéndame una planta para poca luz');
+    $previousOptions = array_map(static fn(string $url): string => basename($url), $paths($lowLight));
+    foreach (['cual seria el nombre mas apropiado para esta mata', '¿Cómo se llama esta planta?'] as $message) {
+        $name = $ask($message, $lowLight['product_context'], ['Recomiéndame una planta para poca luz'], $previousOptions);
+        $assert($paths($name) === [$sansevieria] && str_contains($name['message'], 'Dracaena trifasciata')
+            && str_contains($name['message'], 'lengua de suegra'), 'identifica la recomendación previa por ambos nombres', $name);
+    }
+    $ambiguous = $ask('¿Cómo se llama esta planta?', null, [], ['monstera-deliciosa', 'sansevieria']);
+    $assert($paths($ambiguous) === [] && ($ambiguous['keep_product_options'] ?? false)
+        && str_contains($ambiguous['message'], 'la primera'), 'pide elegir cuando hay varias opciones', $ambiguous);
+    $echeveria = $ask('que es Suculenta Echeveria');
+    $assert($paths($echeveria) === ['/producto/suculenta-echeveria'] && str_contains($echeveria['message'], 'roseta compacta')
+        && !str_contains($echeveria['message'], 'cuesta'), 'describe la echeveria al pedir su definición', $echeveria);
+    $mixedCare = $ask('¿Cómo riego la costilla de Adán y cuánto cuesta?');
+    $assert($paths($mixedCare) === [$monstera] && str_contains($mixedCare['message'], 'sustrato estén secos')
+        && str_contains($mixedCare['message'], '$42.00'), 'reconoce el nombre común y responde sobre riego y precio', $mixedCare);
+    $wateringCan = $ask('¿Cuántos litros caben en la regadera mini?');
+    $assert($paths($wateringCan) === ['/producto/regadera-mini-verde'] && str_contains($wateringCan['message'], 'un litro'),
+        'responde por las especificaciones de un accesorio', $wateringCan);
+    foreach (['quiero un cuji', 'Prosopis juliflora'] as $message) {
+        $unlisted = $ask($message, 'suculenta-echeveria');
+        $assert($paths($unlisted) === [] && str_contains($unlisted['message'], 'cují yaque')
+            && str_contains($unlisted['message'], 'no lo incluye'), 'reconoce el árbol sin atribuirle inventario', $unlisted);
+    }
+    $transport = $ask('que transporte debo tomar para llegar a mi casa en san francisco');
+    $assert($paths($transport) === [] && str_contains($transport['message'], 'servicio de transporte'), 'distingue un trayecto de la entrega de un pedido', $transport);
+    foreach ([
+        ['¿Quiénes son?', 'empresa ficticia', '/nosotros'],
+        ['¿Cuál es su visión?', 'rincón verde', '/nosotros'],
+        ['¿Cómo hago un pedido?', 'añádela al carrito', '/tienda'],
+        ['¿Y si quiero devolver mi compra?', 'ni reembolsos reales', '/preguntas-frecuentes'],
+    ] as [$message, $expected, $link]) {
+        $storeAnswer = $ask($message);
+        $assert(str_contains($storeAnswer['message'], $expected) && ($storeAnswer['store_link'] ?? '') === $link,
+            'responde con la información institucional y enlaza la página correspondiente', $storeAnswer);
+    }
+
     [$denied] = $post(['message'=>'stock PLA-006'], false);
     $assert($denied === 419, 'mantiene la protección CSRF');
     [$status, $spoofed] = $post(['message'=>'stock PLA-006', 'role'=>'ADMIN', 'action'=>'update_stock', 'stock'=>99999]);
     $assert($status === 200 && str_contains($spoofed['message'], '14 unidades') && !str_contains($spoofed['message'], '99999'),
         'ignora solicitudes de mutación y consulta el stock de la base', $spoofed);
+    curl_setopt_array($client, [CURLOPT_HTTPGET=>true, CURLOPT_HTTPHEADER=>[]]);
+    $seedProducts = require dirname(__DIR__).'/app/data/catalog-seed.php';
+    foreach ($seedProducts as $seedProduct) {
+        curl_setopt($client, CURLOPT_URL, $base.'/producto/'.$seedProduct['slug']);
+        $detail = curl_exec($client);
+        $guideHeading = $seedProduct['sku'][0] === 'P' ? 'Guía de cuidados' : 'Detalles y uso';
+        $assert(is_string($detail) && curl_getinfo($client, CURLINFO_RESPONSE_CODE) === 200 && str_contains($detail, $guideHeading),
+            'muestra la guía en la ficha de '.$seedProduct['name']);
+    }
+    foreach (['/nosotros'=>'Nuestra visión', '/preguntas-frecuentes'=>'¿Hay devoluciones o reembolsos?'] as $path => $heading) {
+        curl_setopt($client, CURLOPT_URL, $base.$path);
+        $html = curl_exec($client);
+        $assert(is_string($html) && curl_getinfo($client, CURLINFO_RESPONSE_CODE) === 200 && str_contains($html, $heading),
+            'muestra contenido institucional en '.$path);
+    }
     echo "Chat HTTP aprobado: {$checks} aserciones.\n";
 } finally {
     curl_close($client);

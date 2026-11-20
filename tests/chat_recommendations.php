@@ -148,8 +148,8 @@ $shippingQuestion = new ShopChatQuery('¿Cuánto cuesta la Monstera y hacen env�
 $monsteraProduct = ['id'=>12,'sku'=>'PLA-006','slug'=>'monstera-deliciosa','name'=>'Monstera Deliciosa','scientific_name'=>null,'price_cents'=>4200,'stock'=>14,'light'=>'Indirecta brillante','care_level'=>'Moderado','category'=>'interior','category_name'=>'Plantas de interior','description'=>''];
 $shippingReply = $answer->invoke($chat, $shippingQuestion, [$monsteraProduct], null);
 $assert(str_contains($shippingReply['message'], '$42.00') && str_contains($shippingReply['message'], '14 unidades disponibles')
-    && str_contains($shippingReply['message'], 'No tengo tarifas ni destinos de envío confirmados'),
-    'responde precio y stock y aclara los datos de envío faltantes', $shippingReply);
+    && str_contains($shippingReply['message'], 'no generan envíos ni entregas'),
+    'responde precio y stock y aclara que el pedido simulado no se envía', $shippingReply);
 $easyComparison = new ShopChatQuery('Compara cuál es más fácil de cuidar entre Aloe Vera Compacta y Monstera');
 $comparisonProducts = array_merge($products, [$monsteraProduct]);
 $easyComparisonReply = $answer->invoke($chat, $easyComparison, $comparisonProducts, null);
@@ -211,10 +211,10 @@ $assert(str_contains($foreignCurrencyReply['message'], '$42.00 USD')
 
 $wateringQuestion = new ShopChatQuery('¿Cada cuánto tengo que regar la Monstera?');
 $wateringReply = $answer->invoke($chat, $wateringQuestion, $secondRoundProducts, null);
-$assert(str_contains($wateringReply['message'], 'no especifica cada cuánto regarla')
+$assert(str_contains($wateringReply['message'], 'los primeros centímetros del sustrato estén secos')
     && !str_contains($wateringReply['message'], 'Indirecta brillante')
     && !str_contains($wateringReply['message'], '$42.00'),
-    'responde de forma breve cuando la ficha no contiene frecuencia de riego', $wateringReply);
+    'explica el criterio de riego sin incluir datos ajenos a la pregunta', $wateringReply);
 $humidityClaim = new ShopChatQuery('¿Una planta puede remove humidity and mold?');
 $humidityClaimReply = $answer->invoke($chat, $humidityClaim, $secondRoundProducts, null);
 $assert(str_contains($humidityClaimReply['message'], 'no documenta que una planta elimine humedad o moho')
@@ -325,7 +325,7 @@ $mixedDelivery = new ShopChatQuery('¿Cuánto cuesta la Monstera con envío a Co
 $mixedDeliveryReply = $answer->invoke($chat, $mixedDelivery, $adversarialCatalog, null);
 $assert(str_contains($mixedDeliveryReply['message'], '$42.00 USD')
     && str_contains($mixedDeliveryReply['message'], 'no hago conversión a otra moneda')
-    && str_contains($mixedDeliveryReply['message'], 'No tengo tarifas ni destinos de envío confirmados'),
+    && str_contains($mixedDeliveryReply['message'], 'no generan envíos ni entregas'),
     'persona nueva: cliente que combina envío internacional y conversión de moneda', $mixedDeliveryReply);
 
 $thirdRound = [
@@ -612,7 +612,7 @@ $assert(str_contains($windowlessReply['intro'] ?? '', 'sin ventanas')
 foreach ([
     ['vender tierra aqui ?', 'no incluye tierra o sustrato', '/tienda'],
     ['¿Venden fertilizante?', 'no incluye abono o fertilizante', '/tienda'],
-    ['¿Qué sustrato uso para Monstera?', 'sustrato formulado para macetas', null],
+    ['¿Qué sustrato uso para Monstera?', 'drene bien', null],
     ['¿Las macetas tienen agujeros de drenaje?', 'no indican cuáles macetas', null],
     ['vender mariguana aqui ?', 'no comercializa cannabis', '/tienda'],
     ['¿Hay tienda física?', 'no publica una dirección', '/contacto'],

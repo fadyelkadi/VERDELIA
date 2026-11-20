@@ -240,6 +240,8 @@ h1 em, h2 em { color: var(--leaf-600); font-weight: 400; }
 .quantity-control input::-webkit-inner-spin-button { appearance: none; }
 .product-stock-note { margin: .65rem 0 0; color: var(--ink-600); font-size: .72rem; }
 .detail-accordion { max-width: 450px; margin-top: 1.8rem; border-top: 1px solid var(--line); }
+.detail-accordion h2 { margin: 1rem 0 .5rem; font-family: var(--display); font-size: 1.3rem; }
+.detail-accordion > p { margin: 0 0 .75rem; }
 .detail-accordion details { border-bottom: 1px solid var(--line); }
 .detail-accordion summary { padding: .95rem 0; color: var(--forest-900); font-family: var(--display); font-size: .95rem; cursor: pointer; list-style: none; }
 .detail-accordion summary::-webkit-details-marker { display: none; }

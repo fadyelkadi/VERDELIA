@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__.'/ProductGuide.php';
+require_once __DIR__.'/StoreInformation.php';
+
 final class ShopChat
 {
     private const MAX_BODY_BYTES = 16384;
@@ -13,7 +16,7 @@ final class ShopChat
         'bonsais'=>'bonsáis', 'plantas-con-flores'=>'plantas con flores', 'flores'=>'flores',
     ];
     private const PICKUP_PATTERN = '/\b(retirar|retiro|recoger|recogida|pasar por|paso por|pickup)\b/u';
-    private const PICKUP_NOTICE = 'El stock del catálogo no confirma retiro en tienda, horario ni disponibilidad para hoy.';
+    private const SHIPPING_PATTERN = '/\b(envios?|envian|mandan|enviar|entregas?|entregan|despachos?|despachan|delivery|domicilio|flete)\b/u';
 
     public function __construct(private CatalogRepository $catalog) {}
 
@@ -154,7 +157,7 @@ final class ShopChat
         if (self::isCourtesy($query->text)) {
             return ['message'=>'¡Con gusto! Puedes continuar la consulta cuando quieras.', 'keep_product_options'=>true];
         }
-        $storeInformation = $this->storeInformation($query, $products);
+        $storeInformation = $this->storeInformation($query, $products, $reference !== null || $optionReferences !== []);
         if ($storeInformation !== null) return $storeInformation + ['keep_product_options'=>true];
         if ($query->moreOptions && !$query->recommendationContextActive) {
             return ['message'=>'¿De qué quieres ver más opciones: plantas, macetas o accesorios?'];
@@ -186,7 +189,7 @@ final class ShopChat
         }
         if ($query->rooms !== [] && !$query->trend && !$query->unsupportedCurrency && !$query->externalRetailer
             && ($query->catalogCategory === null || in_array($query->catalogCategory, self::PLANT_CATEGORIES, true))
-            && $this->namedProducts($query, $products) === []) {
+            && !$query->refersToProduct() && $this->namedProducts($query, $products) === []) {
             $excluded = array_column($this->matchProducts($query->excludedText, $products), 'id');
             $available = array_values(array_filter($products, static fn(array $product): bool => !in_array($product['id'], $excluded, true)));
             return $this->roomRecommendations($query, $available, $optionReferences);
@@ -224,13 +227,31 @@ final class ShopChat
             && ($query->lowPrice || $query->care || $query->easy)) {
             $matches = array_values(array_filter($products, static fn(array $product): bool => in_array($product['slug'], $optionReferences, true)));
         }
-        if ($matches === [] && $reference !== null && $query->followsKnownProduct()) {
-            foreach ($products as $product) {
-                if ($product['slug'] === $reference) {
-                    $matches = [$product];
-                    break;
-                }
+        $topics = $query->productTopics();
+        $followUp = $query->followsKnownProduct() || $query->refersToProduct()
+            || preg_match('/^(?:y )?(?:(?:cada )?cuanto (?:la |lo )?(?:riego|regarla|regarlo)|(?:como la |como lo )?trasplanto|de que (?:material es|esta hech[oa])|que (?:tipo de )?(?:luz|sustrato|tierra|cuidados?) (?:necesita|usa|requiere)|cuanta agua (?:necesita|le pongo)|cuanto mide|que capacidad tiene|cuentame mas|que es|como es|como se llama|que nombre le pongo|(?:su )?nombre (?:cientifico|comun))$/u', $query->text) === 1;
+        if ($matches === [] && $followUp) {
+            if (count($optionReferences) === 1 && ($reference === null || $query->refersToProduct())) {
+                $reference = $optionReferences[0];
             }
+            if ($reference !== null) {
+                $matches = array_values(array_filter($products, static fn(array $product): bool => $product['slug'] === $reference));
+            }
+            if ($matches === [] && ($query->refersToProduct() || $optionReferences !== [])) {
+                return [
+                    'message'=>$optionReferences === []
+                        ? '¿De qué producto hablas? Dime su nombre o referencia para buscarlo.'
+                        : '¿A cuál de las opciones te refieres? Puedes decir «la primera», indicar otro número o escribir el nombre.',
+                    'keep_product_options'=>true,
+                ];
+            }
+        }
+        if ($matches === [] && preg_match('/\b(?:cuji(?:\s+yaque)?|prosopis juliflora|neltuma juliflora)\b/u', $query->productText)) {
+            return [
+                'message'=>'El cují yaque (Neltuma juliflora, también llamado Prosopis juliflora) es un árbol. El catálogo actual de VERDELIA no lo incluye. Si buscas una planta para tu espacio, puedo mostrarte opciones según la luz disponible.',
+                'store_link'=>'/tienda',
+                'keep_product_options'=>true,
+            ];
         }
         if ($query->externalRetailer && $matches === []) {
             return ['message'=>'Solo puedo confirmar existencias y precios del catálogo de VERDELIA; no puedo consultar la disponibilidad de otras tiendas.'];
@@ -275,19 +296,19 @@ final class ShopChat
             return $this->appendRetailerCaveat($this->appendCurrencyCaveat($this->appendShippingCaveat($this->appendTransactionCaveat($this->acknowledgeBudget($reply, $query), $query), $query), $query), $query);
         }
         if (count($matches) > 1) {
-            return $this->appendRetailerCaveat($this->appendCurrencyCaveat($this->appendTransactionCaveat($this->acknowledgeBudget($this->compareProducts($matches, $query), $query), $query), $query), $query);
+            return $this->appendRetailerCaveat($this->appendCurrencyCaveat($this->appendShippingCaveat($this->appendTransactionCaveat($this->acknowledgeBudget($this->compareProducts($matches, $query), $query), $query), $query), $query), $query);
         }
-        if (preg_match('/\b(envios?|enviar|entregas?|despachos?|delivery|flete)\b/u', $query->text)) {
-            return $this->appendShippingCaveat(['message'=>'Puedo ayudarte con productos, precios y existencias del catálogo.'], $query);
+        if (preg_match(self::SHIPPING_PATTERN, $query->text)) {
+            return ['message'=>StoreInformation::SHIPPING, 'store_link'=>'/preguntas-frecuentes'];
         }
         if (preg_match(self::PICKUP_PATTERN, $query->text)) {
-            return ['message'=>self::PICKUP_NOTICE];
+            return ['message'=>StoreInformation::PICKUP, 'store_link'=>'/preguntas-frecuentes'];
         }
         if ($query->trend) {
             return $query->unsupportedHorizon ? $this->unsupportedForecast()
                 : ['message'=>'¿De qué producto quieres estimar la demanda? Dime su nombre o SKU.'];
         }
-        if ($query->care && !$query->hasRecommendationCriteria() && !$query->recommendationContextActive) return ['message'=>'¿Qué planta quieres cuidar? Dime el nombre o SKU para revisar qué indica su ficha.'];
+        if ($query->care && !$query->hasRecommendationCriteria() && !$query->recommendationContextActive && $topics === []) return ['message'=>'¿Qué planta quieres cuidar? Dime el nombre o SKU para revisar qué indica su ficha.'];
         if ($query->followsKnownProduct()) return ['message'=>'¿De qué producto? Dime su nombre o SKU para revisar el catálogo.'];
         if ($query->hasRecommendationCriteria() || $query->hasEnvironmentCriteria() || $query->recommendationContextActive
             || ($query->recommendation && ($query->catalogCategory !== null || $query->compactSpace || str_contains($query->text, 'algo verde')))) {
@@ -306,10 +327,11 @@ final class ShopChat
             if (preg_match('/\b(escritorio|mesa de trabajo|repisa|estante|espacio pequeno|algo verde)\b/u', $query->text) === 1) {
                 return ['message'=>'¿Buscas una planta para ese espacio? Dime si recibe poca luz, luz indirecta o sol directo y revisaré opciones disponibles del catálogo.'];
             }
-            return ['message'=>'No identifiqué el producto. Dime su nombre tal como aparece en el catálogo o su SKU.'];
+            return ['message'=>'No encontré una coincidencia en el catálogo de VERDELIA. Puedes probar con otro nombre, el nombre científico o la referencia (SKU).', 'store_link'=>'/tienda', 'keep_product_options'=>true];
         }
+        if ($topics !== []) return ['message'=>'No identifiqué el artículo. Escribe su nombre o referencia para revisar qué información tiene la ficha.', 'keep_product_options'=>true];
         if ($query->recommendation) return ['message'=>'¿Buscas una planta, una maceta o un accesorio?'];
-        return ['message'=>'Solo puedo ayudar con VERDELIA: catálogo, precios, stock, cuidados que aparecen en las fichas, recomendaciones por luz o presupuesto y tendencias de demanda. Dime el producto o qué necesitas saber.'];
+        return ['message'=>'Solo puedo ayudar con VERDELIA. Pregúntame por un producto, sus cuidados, qué planta elegir o cómo funcionan el carrito y los pedidos.', 'keep_product_options'=>true];
     }
 
     private function inheritRecommendationHistory(ShopChatQuery $query, array $history, array $products): void
@@ -493,9 +515,16 @@ final class ShopChat
             $sku = ShopChatQuery::normalize((string)$product['sku']);
             $name = ShopChatQuery::normalize((string)$product['name']);
             $alias = explode(' ', $name, 2)[0];
-            $scientific = ShopChatQuery::normalize((string)($product['scientific_name'] ?? ''));
+            $guide = ProductGuide::forProduct($product);
+            $scientific = ShopChatQuery::normalize(ProductGuide::scientificName($product, $guide));
+            $guideMatch = false;
+            foreach ($guide['aliases'] ?? [] as $alternative) {
+                if (!$this->mentions($query, $alternative)) continue;
+                $guideMatch = true;
+                break;
+            }
             if (($sku !== '' && str_contains(' '.$query.' ', ' '.$sku.' ')) || $this->mentions($query, $name)
-                || ($scientific !== '' && $this->mentions($query, $scientific))) {
+                || $this->mentions($query, $scientific) || $guideMatch) {
                 $specific[] = $product;
                 $confirmedAliases[$alias] = true;
             } elseif (strlen($alias) >= 4 && rtrim($alias, 's') !== rtrim($categoryAlias ?? '', 's')
@@ -553,23 +582,19 @@ final class ShopChat
             $message = $this->productSummary($product, null).' Mencionaste 0 unidades; dime cuántas necesitas para comprobar si hay suficientes.';
             return ['message'=>$message, 'products'=>[$this->publicProduct($product)]];
         }
-        if ($query->watering && !$query->lightQuestion && $query->light === null && !$query->noDirect && !$query->easy) {
-            $message = $this->productLabel($product).'. La ficha no especifica cada cuánto regarla.';
-            if (preg_match('/\b(precio|cuesta|costaria|stock|existencias?|disponible|hay)\b/u', $query->text) === 1) {
-                $message .= ' '.$this->productSummary($product, $query->quantity);
-            }
-            return ['message'=>$message, 'products'=>[$this->publicProduct($product)]];
-        }
         if (preg_match('/\bcomo (?:llegaron|calcularon) a ese numero\b/u', $query->text)) {
             return ['message'=>'Si te refieres al pronóstico, la regresión ajusta una línea a las ventas confirmadas de los últimos seis meses completos y estima el primer mes posterior. Requiere ventas en al menos tres de esos meses. El precio y las existencias vienen del catálogo.'];
         }
 
-        $facts = [];
-        if ($query->care || $query->light !== null || $query->noDirect || $query->easy || $query->lightQuestion) {
-            $facts[] = $this->productLabel($product).'.';
+        $guide = ProductGuide::forProduct($product);
+        $topics = $query->productTopics();
+        $facts = $this->guideFacts($query, $product, $guide, $topics);
+        $generalCare = $query->care && !$query->watering && !in_array('substrate', $topics, true);
+        if ($generalCare || $query->light !== null || $query->noDirect || $query->easy || $query->lightQuestion) {
             $light = (string)$product['light'];
             $care = (string)$product['care_level'];
             if ($light !== '') $facts[] = 'La ficha indica «'.$light.'».';
+            if ($light !== '' && isset($guide['light'])) $facts[] = $guide['light'];
             if ($care !== '') $facts[] = 'Nivel de cuidado: '.$care.'.';
             if (($query->light !== null || $query->noDirect) && $this->lightScore($product, $query) <= 0) {
                 $facts[] = 'La ficha no confirma que sea adecuada para la condición de luz que pediste.';
@@ -577,16 +602,24 @@ final class ShopChat
             if ($query->easy && ShopChatQuery::normalize($care) !== 'facil') {
                 $facts[] = 'La ficha no la clasifica como una opción de cuidado fácil.';
             }
-            if ($query->watering) {
-                $facts[] = 'La ficha no especifica la frecuencia de riego.';
-            } elseif ($light === '' && $care === '') {
+            if ($light === '' && $care === '' && $facts === []) {
                 $facts[] = 'La ficha no incluye indicaciones de cuidado.';
             }
+        }
+        if ($query->watering || ($generalCare && isset($guide['watering']))) {
+            $facts[] = $guide['watering'] ?? 'La ficha no especifica cada cuánto regarla.';
+        }
+        if ($generalCare && isset($guide['tip'])) $facts[] = $guide['tip'];
+
+        $commercial = preg_match('/\b(?:precios?|cuest[ae]\w*|costari\w*|vale[n]?|a cuanto|stock|existencias?|disponib\w*|hay|quedan?|unidades?|venden?|tienen?)\b/u', $query->text) === 1;
+        $hasDetails = $facts !== [];
+        if ($hasDetails && $query->budget === null && !$commercial && $query->quantity === null) {
+            array_unshift($facts, $this->productLabel($product).'.');
         }
         if ($query->budget !== null) {
             $relation = $this->fitsQueryBudget($product, $query) ? 'Está dentro de tu presupuesto.' : 'Queda fuera de tu presupuesto.';
             $facts[] = $this->productSummary($product, $query->quantity).' '.$relation;
-        } elseif ($query->catalogIntent || $facts === []) {
+        } elseif ($commercial || $query->quantity !== null || !$hasDetails) {
             $facts[] = $this->productSummary($product, $query->quantity);
         }
         $message = implode(' ', $facts);
@@ -596,6 +629,31 @@ final class ShopChat
             $message .= ' La ficha no confirma resistencia a golpes o roturas; no puedo asegurar que sea irrompible.';
         }
         return ['message'=>$message, 'products'=>[$this->publicProduct($product)]];
+    }
+
+    private function guideFacts(ShopChatQuery $query, array $product, array $guide, array $topics): array
+    {
+        $facts = [];
+        if (in_array('name', $topics, true)) {
+            $scientific = ProductGuide::scientificName($product, $guide);
+            if (isset($guide['common'])) $facts[] = 'Nombre común: '.$guide['common'].'.';
+            if ($scientific !== '') $facts[] = 'Nombre científico: '.rtrim($scientific, '.').'.';
+            if ($facts === []) $facts[] = 'La ficha solo registra el nombre comercial.';
+            if (isset($guide['nickname']) && preg_match('/\b(?:apodo|bautiz\w*|ponerle|le pong\w*|le pongo|le pon[d]?r\w*|la puedo llamar|nombre mas apropiado)\b/u', $query->text)) {
+                $facts[] = 'Si buscas un apodo, podrías llamarla «'.$guide['nickname'].'».';
+            }
+        }
+        if (in_array('overview', $topics, true)) {
+            $description = trim((string)($product['description'] ?? ''));
+            $facts[] = $guide['overview'] ?? ($description !== '' ? $description : 'La ficha no incluye una descripción adicional.');
+            if (isset($guide['specifications'])) $facts[] = $guide['specifications'];
+        } elseif (in_array('specifications', $topics, true)) {
+            $facts[] = $guide['specifications'] ?? 'La ficha no especifica ese material, medida o capacidad.';
+        }
+        if (in_array('substrate', $topics, true)) {
+            $facts[] = $guide['substrate'] ?? 'La ficha no especifica un sustrato ni instrucciones de trasplante para este producto.';
+        }
+        return $facts;
     }
 
     private function unsupportedForecast(): array
@@ -652,12 +710,13 @@ final class ShopChat
     private function appendShippingCaveat(array $reply, ShopChatQuery $query): array
     {
         $notice = '';
-        if (preg_match('/\b(envios?|enviar|entregas?|despachos?|delivery|flete)\b/u', $query->text)) {
-            $notice .= ' No tengo tarifas ni destinos de envío confirmados.';
+        if (preg_match(self::SHIPPING_PATTERN, $query->text)) {
+            $notice .= ' '.StoreInformation::SHIPPING;
         }
         if (preg_match(self::PICKUP_PATTERN, $query->text)) {
-            $notice .= ' '.self::PICKUP_NOTICE;
+            $notice .= ' '.StoreInformation::PICKUP;
         }
+        if ($notice !== '') $reply['store_link'] = '/preguntas-frecuentes';
         $reply['message'] .= $notice;
         if (isset($reply['intro'])) $reply['intro'] .= $notice;
         return $reply;
@@ -885,7 +944,7 @@ final class ShopChat
         ];
     }
 
-    private function storeInformation(ShopChatQuery $query, array $products): ?array
+    private function storeInformation(ShopChatQuery $query, array $products, bool $hasProductContext): ?array
     {
         $text = $query->text;
         $supplies = [
@@ -897,6 +956,14 @@ final class ShopChat
         ];
         $buying = preg_match('/\b(venden?|vender|tienen?|hay|stock|existencias?|disponib\w*|busco|comprar|precio|cuanto cuesta)\b/u', $text) === 1
             || preg_match('/^(?:(?:hola|buenas)\s+)?(?:necesito|quiero|quisiera|me gustaria)\b/u', $text) === 1;
+        $named = $this->namedProducts($query, $products);
+        if (in_array('substrate', $query->productTopics(), true) && !$buying
+            && ($named !== [] || ($hasProductContext && $query->refersToProduct()))) {
+            return null;
+        }
+        if (preg_match('/\b(?:que (?:transporte|autobus|bus|metro|ruta) (?:debo |puedo )?tomar|como (?:llego|puedo llegar) a (?:mi casa|mi domicilio))\b/u', $text)) {
+            return ['message'=>'Para planificar ese trayecto, consulta un mapa o el servicio de transporte de tu ciudad. Puedo ayudarte a recorrer la tienda en línea de VERDELIA.'];
+        }
         $supplyNotes = [];
         $supplyProducts = [];
         foreach ($supplies as [$label, $terms]) {
@@ -932,7 +999,6 @@ final class ShopChat
             if ($supplyProducts === []) return ['message'=>$intro, 'store_link'=>'/tienda'];
             return $this->categorySupplyReply(array_values($supplyProducts), $intro);
         }
-        $named = $this->namedProducts($query, $products);
         if ($this->mentionsDrainage($text) && count($named) === 1 && $this->productMatchesCategory($named[0], 'macetas')) {
             return null;
         }
@@ -940,6 +1006,7 @@ final class ShopChat
             return ['message'=>'Para plantar directamente, usa un recipiente con orificios de drenaje para que salga el exceso de agua. Las fichas de VERDELIA no indican cuáles macetas tienen esos orificios.'];
         }
         if ($named !== []) return null;
+        if ($hasProductContext && $query->refersToProduct() && !$query->transactionIntent) return null;
         if (preg_match('/\b(?:duen[oa]s?|propietari[oa]s?|a quien pertenece|de quien es)\b/u', $text)
             && preg_match('/\b(?:tienda|verdelia|negocio|sitio)\b/u', $text)) {
             return ['message'=>'El sitio no publica quién es el propietario de VERDELIA. La página Contacto muestra el equipo de diseño y desarrollo.', 'store_link'=>'/contacto'];
@@ -947,25 +1014,54 @@ final class ShopChat
         if ($query->catalogIntent && preg_match('/\b(?:toyota|automoviles?|vehiculos?|camionetas?|coche(?:s)?|carro(?:s)?(?! de compras))\b/u', $text)) {
             return ['message'=>'VERDELIA no vende vehículos. El catálogo reúne plantas, macetas y accesorios de jardinería.', 'store_link'=>'/tienda'];
         }
-        if (preg_match('/\b(horarios?|ubicacion|tienda fisica|local fisico|donde (?:queda|quedan|estan|se ubican)|abren|cierran)\b/u', $text)) {
-            return ['message'=>'VERDELIA funciona como tienda en línea. El sitio no publica una dirección ni un horario de atención presencial.', 'store_link'=>'/contacto'];
+        if (preg_match('/\b(?:quienes son|quienes somos|que es verdelia|sobre verdelia|acerca de (?:la (?:empresa|tienda)|verdelia)|(?:historia|mision|vision|valores|objetivo|origen) (?:de (?:la (?:empresa|tienda)|verdelia))|(?:su|sus) (?:historia|mision|vision|valores)|como (?:nacio|surgio) verdelia|empresa ficticia|es (?:una )?tienda real|que tipo de (?:empresa|tienda) (?:es|son)|como se llama la (?:empresa|tienda))\b/u', $text)) {
+            $message = match (true) {
+                preg_match('/\bvalores\b/u', $text) === 1 => 'Nuestros valores son '.implode(', ', array_keys(StoreInformation::VALUES)).'.',
+                preg_match('/\bvision\b/u', $text) === 1 => StoreInformation::VISION,
+                preg_match('/\b(?:mision|objetivo)\b/u', $text) === 1 => StoreInformation::MISSION,
+                default => StoreInformation::HISTORY.' '.StoreInformation::MISSION,
+            };
+            return ['message'=>$message, 'store_link'=>'/nosotros'];
         }
-        if (preg_match('/\b(contacto|contactar(?:los)?|correo(?: de la tienda)?|whatsapp|atencion al cliente)\b/u', $text)) {
-            return ['message'=>'En la página Contacto del sitio puedes consultar los datos publicados de VERDELIA.', 'store_link'=>'/contacto'];
+        if (preg_match('/^(?:hola )?(?:que venden|que productos (?:venden|tienen|ofrecen)|que puedo comprar(?: aqui| en la tienda)?|que ofrece verdelia|que venden en verdelia)$/u', $text)) {
+            return ['message'=>StoreInformation::MISSION, 'store_link'=>'/tienda'];
+        }
+        if (preg_match('/\b(horarios?|ubicacion|tienda fisica|local fisico|donde (?:queda|quedan|estan|se ubican)|abren|cierran)\b/u', $text)) {
+            return ['message'=>StoreInformation::LOCATION, 'store_link'=>'/contacto'];
+        }
+        if (preg_match('/\b(?:equipo (?:de verdelia|del proyecto|de diseno)|quien(?:es)? (?:hicieron|crearon|disenaron|creo|diseno|desarrollo) (?:el proyecto|la tienda|la (?:pagina|web)|verdelia))\b/u', $text)) {
+            return ['message'=>'El equipo de diseño y desarrollo está formado por '.implode(', ', array_keys(StoreInformation::TEAM)).'.', 'store_link'=>'/contacto'];
+        }
+        if (preg_match('/\b(contacto|contactar(?:los)?|correo(?: de la tienda)?|whatsapp|telefono|atencion al cliente|como (?:les )?escribo|hablar con alguien)\b/u', $text)) {
+            return ['message'=>StoreInformation::CONTACT.' El sitio no ofrece un teléfono o WhatsApp de atención.', 'store_link'=>'/contacto'];
+        }
+        if (preg_match('/\b(?:devolu\w*|devolver|reembols\w*|garantias?)\b/u', $text)) {
+            return ['message'=>StoreInformation::RETURNS, 'store_link'=>'/preguntas-frecuentes'];
+        }
+        if (preg_match('/\b(?:privacidad|cookies?|datos personales|que datos (?:guardan|recopilan))\b/u', $text)) {
+            return ['message'=>StoreInformation::PRIVACY, 'store_link'=>'/privacidad'];
         }
         if (preg_match('/\b(pagar|pagos?|paypal|con tarjeta|aceptan tarjetas?|tarjeta de (?:credito|debito)|compra real|comprar de verdad)\b/u', $text)) {
-            return ['message'=>'Al finalizar el pedido puedes usar el simulador de pago de VERDELIA. La simulación no cobra dinero ni solicita los datos de una tarjeta o credenciales de PayPal.', 'store_link'=>'/preguntas-frecuentes'];
+            return ['message'=>StoreInformation::PAYMENT, 'store_link'=>'/preguntas-frecuentes'];
         }
-        if (preg_match('/\b(mis pedidos|mi pedido|ver mi compra|seguimiento (?:del|de mi) pedido|mis recibos?)\b/u', $text)) {
-            return ['message'=>'Inicia sesión y abre Mis pedidos para consultar el estado y el recibo de cada pedido de tu cuenta.', 'store_link'=>'/cuenta/pedidos'];
+        if (preg_match('/\b(?:como (?:puedo )?(?:comprar|compro|hacer (?:un |mi )?pedido)|como (?:hago|realizo) (?:un |mi )?(?:pedido|compra)|finalizar (?:la |mi )?compra|proceso de compra|como funciona la compra)\b/u', $text)) {
+            return ['message'=>StoreInformation::PURCHASE, 'store_link'=>'/tienda'];
+        }
+        if (preg_match('/\b(mis pedidos|mi pedido|ver mi compra|seguimiento (?:del|de mi) pedido|mis recibos?|estado del pedido)\b/u', $text)) {
+            return ['message'=>StoreInformation::ORDERS, 'store_link'=>'/cuenta/pedidos'];
+        }
+        if (preg_match('/\b(?:carrito|cesta|canasta de compra)\b/u', $text)) {
+            return ['message'=>StoreInformation::CART, 'store_link'=>'/carrito'];
         }
         if (preg_match('/\b(cuenta|registr(?:ar|arme|arme en|o)|iniciar sesion)\b/u', $text)
             && preg_match('/\b(como|puedo|necesito|crear|registrarme|registro)\b/u', $text)) {
-            return ['message'=>'Puedes crear tu cuenta desde Registrarse. Con la sesión iniciada podrás revisar tus pedidos y conservar el carrito entre visitas.', 'store_link'=>'/registro'];
+            return ['message'=>StoreInformation::ACCOUNT, 'store_link'=>'/registro'];
         }
-        if (preg_match('/\b(envios?|entregas?|despachos?|delivery|domicilio|flete)\b/u', $text)
-            && !preg_match(self::PICKUP_PATTERN, $text) && !$query->unsupportedCurrency) {
-            return ['message'=>'El proceso de compra de VERDELIA es simulado. Los pedidos en el sitio no generan envíos ni entregas.', 'store_link'=>'/preguntas-frecuentes'];
+        if (preg_match(self::PICKUP_PATTERN, $text)) {
+            return ['message'=>StoreInformation::PICKUP, 'store_link'=>'/preguntas-frecuentes'];
+        }
+        if (preg_match(self::SHIPPING_PATTERN, $text) && !$query->unsupportedCurrency) {
+            return ['message'=>StoreInformation::SHIPPING, 'store_link'=>'/preguntas-frecuentes'];
         }
         return null;
     }

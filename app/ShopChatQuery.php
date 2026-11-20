@@ -121,7 +121,7 @@ final class ShopChatQuery
         $this->easyMentioned = $easyNegative || $easyPositive || $advanced;
         $this->carePreference = $easyNegative ? null : ($advanced ? 'advanced' : ($easyPositive ? 'easy' : null));
         $this->easy = $this->carePreference === 'easy';
-        $this->watering = preg_match('/\b(riego|regar|riega|regarse|riegue|cuanta agua|frecuencia de riego)\b/u', $text) === 1;
+        $this->watering = preg_match('/\b(riegos?|regar(?:l[oa]s?)?|riega|regarse|riegue|cuanta agua|(?:le )?echo agua|ponerle agua)\b/u', $text) === 1;
         $this->care = $this->watering || preg_match('/\b(cuidados?|cuidar|cuido|cuida|cuidarla|cuidarlo|mantenimiento)\b/u', $text) === 1;
         $this->trend = preg_match('/\b(ventas?|demanda|tendencia|proyeccion|estimacion|estiman|estimado|prevision|predecir|pronostic\w*|vendera[n]?|venderia[n]?|vendieron)\b/u', $text) === 1;
         $this->unsupportedHorizon = preg_match(
@@ -350,6 +350,26 @@ final class ShopChatQuery
             '/^(?:y\s+)?(?:(?:cuant[oa]s?\s+)?(?:cuesta|cuestan|costaria|costarian|vale|valen|queda|quedan|hay|tienen|tienes)|cuant[oa]s?\s+me\s+(?:cuesta|cuestan|costaria|costarian)|cuant[oa]s?|(?:como\s+)?(?:la cuido|lo cuido|cuidarla|cuidarlo|la riego|lo riego|regarla|regarlo)|(?:su |el )?(?:precio|stock|disponibilidad)|(?:tendencia|demanda|ventas)|como (?:llegaron|calcularon) a ese numero)(?:\s+(?:de esa(?: planta)?|de ese(?: producto)?|de ella|de el|disponibles?|en stock|en existencia|en total|ahora|por favor|de stock|de luz|de demanda|por unidad|[0-9]+|unidades?|estimada|mensual|en usd))*$/u',
             $this->text
         ) === 1;
+    }
+
+    public function productTopics(): array
+    {
+        $patterns = [
+            'name'=>'nombre (?:cientifico|comun|botanico|real|mas apropiado)|(?:cual|que) (?:seria|es) (?:el|su) nombre|como (?:se llama|la llaman|le dicen|le pongo|la puedo llamar)|que nombre (?:le (?:pongo|pondrias)|ponerle)|(?:apodo|bautizarla)',
+            'overview'=>'^(?:(?:y|oye) )?(?:que es|que planta es|que tipo de planta es|que clase de planta es|(?:cuentame|dime|hablame) (?:(?:mas |algo )?(?:sobre|de)|mas$)|informacion (?:sobre|de)|describe(?:me|la|lo)?|como es)\b|\b(?:caracteristicas|para que sirve|se usa para|como se usa|como (?:la|lo) uso|es (?:de|para) interior)\b',
+            'substrate'=>'(?:que|cual|tipo de) (?:tierra|sustrato|mezcla)|(?:tierra|sustrato) (?:necesita|recomiendas|uso|utilizo|lleva|para)|trasplant\w*',
+            'specifications'=>'material(?:es)?|de que (?:esta )?hech[oa]|capacidad|cuant[oa]s? litros?|diametro|dimensiones|cuanto (?:mide|cabe)|medidas',
+        ];
+        $topics = [];
+        foreach ($patterns as $topic => $pattern) {
+            if (preg_match('/\b(?:'.$pattern.')\b/u', $this->text) === 1) $topics[] = $topic;
+        }
+        return $topics;
+    }
+
+    public function refersToProduct(): bool
+    {
+        return preg_match('/\b(?:est[ae]|es[ae]|aquell[ae]) (?:plantita|plantas?|mata|suculenta|cactus|maceta|regadera|producto|articulo|opcion)\b|^(?:y )?(?:es[ae]|est[ae]|de ella|de el)$/u', $this->text) === 1;
     }
 
     public static function normalize(string $value): string
