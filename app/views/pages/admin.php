@@ -52,7 +52,6 @@ $modelChart=['labels'=>array_column($analyticsModelSeries,'label'),'actual'=>arr
   <div class="admin-content">
     <div class="admin-topline"><div><p class="eyebrow">VERDELIA · Administración</p><h1><?= h($adminTitle) ?></h1></div><a class="button button-small button-outline" href="/">Volver a la tienda <?= icon('arrow',15) ?></a></div>
     <?php if(isset($flash['message'])&&is_string($flash['message'])): ?><p class="admin-feedback <?= ($flash['type']??'')==='success'?'is-success':'is-error' ?>" role="status"><?= h($flash['message']) ?></p><?php endif; ?>
-    <?php if($adminSection==='' || $adminSection==='analitica'): ?><p class="admin-feedback is-error" role="note">Datos de demostración: los pedidos aprobados se procesan con un simulador. Las ventas y tendencias no representan transacciones reales.</p><?php endif; ?>
 
     <?php if($adminSection===''): ?>
       <div class="metric-grid admin-metric-grid">
