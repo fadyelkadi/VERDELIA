@@ -24,9 +24,15 @@ final class CatalogRepository
         $params = [];
         if ($filters['category'] !== null) { $where[]='c.slug=:category'; $params['category']=$filters['category']; }
         if ($filters['query'] !== '') {
-            $where[]='(p.name LIKE :query_name OR p.sku LIKE :query_sku OR p.scientific_name LIKE :query_scientific OR p.description LIKE :query_description)';
+            $where[]='(p.name LIKE :query_name OR p.sku LIKE :query_sku OR p.scientific_name LIKE :query_scientific OR p.description LIKE :query_description OR p.name LIKE :query_alias)';
             $needle='%'.$filters['query'].'%';
-            $params['query_name']=$needle; $params['query_sku']=$needle; $params['query_scientific']=$needle; $params['query_description']=$needle;
+            $alias = match (true) {
+                preg_match('/\bcostilla de ad[aá]n\b/iu', $filters['query']) === 1 => 'Monstera',
+                preg_match('/\bsanseveria\b/iu', $filters['query']) === 1 => 'Sansevieria',
+                preg_match('/\bbamb[uú] de la suerte\b/iu', $filters['query']) === 1 => 'Bambú de la Suerte',
+                default => $filters['query'],
+            };
+            $params['query_name']=$needle; $params['query_sku']=$needle; $params['query_scientific']=$needle; $params['query_description']=$needle; $params['query_alias']='%'.$alias.'%';
         }
         if ($filters['min_price'] !== null) { $where[]='p.price_cents>=:min_price'; $params['min_price']=$filters['min_price']; }
         if ($filters['max_price'] !== null) { $where[]='p.price_cents<=:max_price'; $params['max_price']=$filters['max_price']; }
@@ -38,7 +44,18 @@ final class CatalogRepository
         }
         if ($filters['light'] !== []) {
             $slots=[];
-            foreach ($filters['light'] as $i=>$value) { $key='light_'.$i; $slots[]='p.light LIKE :'.$key; $params[$key]='%'.$value.'%'; }
+            foreach ($filters['light'] as $i=>$value) {
+                $key='light_'.$i;
+                if ($value === 'directa') {
+                    $slots[]='(LOWER(p.light) LIKE :'.$key.' AND LOWER(p.light) NOT LIKE :light_indirect_'.$i.')';
+                    $params[$key]='%directa%'; $params['light_indirect_'.$i]='%indirecta%';
+                } elseif ($value === 'baja') {
+                    $slots[]='(LOWER(p.light) LIKE :'.$key.' OR LOWER(p.light) LIKE :light_low_'.$i.')';
+                    $params[$key]='%baja%'; $params['light_low_'.$i]='%poca%';
+                } else {
+                    $slots[]='LOWER(p.light) LIKE :'.$key; $params[$key]='%'.$value.'%';
+                }
+            }
             $where[]='('.implode(' OR ', $slots).')';
         }
         $from=' FROM products p JOIN categories c ON c.id=p.category_id LEFT JOIN product_images pi ON pi.id=(SELECT pi2.id FROM product_images pi2 WHERE pi2.product_id=p.id ORDER BY pi2.position_num,pi2.id LIMIT 1) WHERE '.implode(' AND ',$where);

@@ -4,10 +4,23 @@ $guide = ProductGuide::forProduct($product);
 $scientificName = ProductGuide::scientificName($product, $guide);
 $guideSections = [
     'specifications'=>'Material y medidas',
+    'characteristics'=>'Características',
+    'origin'=>'Origen',
+    'growth'=>'Crecimiento y tamaño',
     'light'=>'Dónde colocarla',
     'watering'=>'Riego',
+    'humidity'=>'Humedad',
+    'temperature'=>'Temperatura',
+    'flowering'=>'Floración',
+    'propagation'=>'Propagación',
+    'fertilizer'=>'Abono y fertilizante',
     'substrate'=>'Sustrato y maceta',
+    'common_issues'=>'Problemas frecuentes',
+    'cleaning'=>'Limpieza',
+    'handling'=>'Manipulación y traslado',
+    'restock'=>'Existencias y reposición',
     'tip'=>'Consejo práctico',
+    'pet_safety'=>'Mascotas y seguridad',
 ];
 ?>
 <nav class="breadcrumbs page-gutter" aria-label="Ruta de navegación"><a href="/">Inicio</a><span>/</span><a href="/categoria/<?= h($product['category']) ?>"><?= h($product['category_name']) ?></a><span>/</span><span aria-current="page"><?= h($product['name']) ?></span></nav>
@@ -20,7 +33,7 @@ $guideSections = [
     <p class="detail-price"><?= h(money($product['price'])) ?></p><p class="detail-description"><?= h($product['description']) ?></p>
     <div class="detail-stock <?= (int)$product['stock']<1?'is-out':((int)$product['stock']<=15?'is-low':'') ?>"><span class="stock-dot"></span><?php if ((int)$product['stock']<1): ?>Agotado<?php elseif ((int)$product['stock']<=15): ?>Quedan pocas unidades · <?= (int)$product['stock'] ?> disponibles<?php else: ?><?= (int)$product['stock'] ?> unidades disponibles<?php endif; ?></div>
     <div class="detail-size"><span>Referencia</span><strong><?= h($product['sku']) ?></strong></div>
-    <?php if ($product['care'] !== ''): ?><div class="care-tags"><span><?= icon('sun', 18) ?> <?= h($product['light']) ?></span><span><?= icon('drop', 18) ?> Cuidado <?= h(strtolower($product['care'])) ?></span></div><?php endif; ?>
+    <?php if ($product['care'] !== ''): ?><div class="care-tags"><span><?= icon('sun', 18) ?> <?= h($product['light']) ?></span><span><?= icon('drop', 18) ?> Cuidado <?= h(lowercase(care_level_label($product['care']))) ?></span></div><?php endif; ?>
     <div class="purchase-row"><label class="field-label" for="quantity">Cantidad</label><div class="quantity-control"><button type="button" aria-label="Restar una unidad" data-quantity-step="-1">−</button><input id="quantity" type="number" min="1" max="<?= max(1,(int)$product['stock']) ?>" value="1" inputmode="numeric" <?= (int)$product['stock']<1?'disabled':'' ?> data-product-quantity><button type="button" aria-label="Sumar una unidad" data-quantity-step="1" <?= (int)$product['stock']<1?'disabled':'' ?>>+</button></div></div>
     <button class="button button-primary button-wide" type="button" data-add-to-cart="<?= h($product['sku']) ?>" data-quantity-source="product" <?= (int)$product['stock']<1?'disabled':'' ?>><?= (int)$product['stock']<1?'Producto agotado':'Añadir al carrito' ?> <?= icon('arrow', 17) ?></button>
     <p class="product-stock-note">Añadir al carrito no reserva existencias.</p>

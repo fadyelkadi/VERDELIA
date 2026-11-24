@@ -1,0 +1,11 @@
+Options -Indexes -MultiViews
+FallbackResource /index.php
+
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(?:bak|conf|dist|ini|log|md|sql|ya?ml)$">
+    Require all denied
+</FilesMatch>
+

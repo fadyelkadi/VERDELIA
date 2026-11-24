@@ -10,13 +10,26 @@ $pdo = new PDO('sqlite::memory:');
 $chat = new ShopChat(new CatalogRepository($pdo));
 $inheritHistory = new ReflectionMethod(ShopChat::class, 'inheritRecommendationHistory');
 $answer = new ReflectionMethod(ShopChat::class, 'answer');
+$publicProduct = new ReflectionMethod(ShopChat::class, 'publicProduct');
 $inheritHistory->setAccessible(true);
 $answer->setAccessible(true);
+$publicProduct->setAccessible(true);
 $checks = 0;
 $assert = static function (bool $ok, string $name, array $reply = []) use (&$checks): void {
     if (!$ok) throw new RuntimeException('FALLÓ: '.$name.' '.json_encode($reply, JSON_UNESCAPED_UNICODE));
     $checks++;
 };
+
+$assert(care_level_label('Media') === 'Intermedio'
+    && care_level_label('Avanzada') === 'Avanzado',
+    'presenta los niveles de cuidado con concordancia natural');
+$displayProduct = $publicProduct->invoke($chat, [
+    'name'=>'Ficus Lyrata', 'slug'=>'ficus-lyrata', 'price_cents'=>5400, 'stock'=>9,
+    'light'=>'Luz indirecta brillante', 'care_level'=>'Media', 'image'=>'ficus.png',
+    'category'=>'interior', 'category_name'=>'Plantas de interior',
+]);
+$assert(($displayProduct['care'] ?? '') === 'Intermedio',
+    'el chat muestra el nivel de cuidado con la etiqueta legible');
 
 $products = [
     ['id'=>1,'sku'=>'PLA-001','slug'=>'aloe-vera-compacta','name'=>'Aloe Vera Compacta','scientific_name'=>null,'price_cents'=>1490,'stock'=>24,'light'=>'Indirecta brillante','care_level'=>'Fácil','category'=>'suculentas','category_name'=>'Suculentas'],
@@ -220,6 +233,28 @@ $humidityClaimReply = $answer->invoke($chat, $humidityClaim, $secondRoundProduct
 $assert(str_contains($humidityClaimReply['message'], 'no documenta que una planta elimine humedad o moho')
     && ($humidityClaimReply['products'] ?? []) === [],
     'no promete resultados contra humedad o moho que el catálogo no respalda', $humidityClaimReply);
+$moldRemoval = new ShopChatQuery('Quiero una planta que elimine el moho de mi cuarto');
+$moldRemovalReply = $answer->invoke($chat, $moldRemoval, $secondRoundProducts, null);
+$assert($moldRemoval->unsupportedPlantEffect && ($moldRemovalReply['products'] ?? []) === []
+    && str_contains($moldRemovalReply['message'], 'no documenta que una planta elimine humedad o moho'),
+    'detecta la petición de eliminar moho y no recomienda una planta con un efecto no documentado', $moldRemovalReply);
+$sizeRequest = new ShopChatQuery('Quiero una planta de menos de 20 cm para mi escritorio');
+$sizeReply = $answer->invoke($chat, $sizeRequest, $secondRoundProducts, null);
+$assert($sizeRequest->maxSizeCm === 20 && $sizeRequest->budget === null
+    && str_contains($sizeReply['message'], 'no registran la altura y el ancho actuales')
+    && !str_contains($sizeReply['message'], 'presupuesto'),
+    'interpreta centímetros como medida, no como precio, y admite que faltan medidas actuales', $sizeReply);
+$knownPlant = new ShopChatQuery('¿Se hace grande?');
+$growthReply = $answer->invoke($chat, $knownPlant, $secondRoundProducts, 'sansevieria');
+$assert(str_contains($growthReply['message'], 'Forma grupos de hojas')
+    && str_contains($growthReply['message'], 'No se registra la altura exacta'),
+    'responde una pregunta de crecimiento sobre el producto en contexto y declara la medida faltante', $growthReply);
+$airflowQuestion = new ShopChatQuery('¿Puedo dejarla junto al aire acondicionado?');
+$airflowReply = $answer->invoke($chat, $airflowQuestion, $secondRoundProducts, 'monstera-deliciosa');
+$assert(in_array('airflow', $airflowQuestion->productTopics(), true)
+    && str_contains($airflowReply['message'], 'Un tutor ayuda') === false
+    && str_contains($airflowReply['message'], 'aire acondicionado o a corrientes directas'),
+    'responde a la pregunta contextual de aire acondicionado con el límite conocido en la ficha', $airflowReply);
 
 $oversubscribed = new ShopChatQuery('¿Tienen 20 monsteras?');
 $oversubscribedReply = $answer->invoke($chat, $oversubscribed, $secondRoundProducts, null);
@@ -282,7 +317,7 @@ $assert(str_contains($englishVariantReply['message'], 'poca luz')
 // A second, distinct round focuses on context shifts and unsupported store/product promises.
 $parentQuestion = new ShopChatQuery('¿La Monstera es segura para mi bebé?');
 $parentReply = $answer->invoke($chat, $parentQuestion, $adversarialCatalog, null);
-$assert(!str_contains($parentReply['message'], '$42.00') && str_contains($parentReply['message'], 'toxicidad o seguridad de las plantas para bebés o niños'),
+$assert(!str_contains($parentReply['message'], '$42.00') && str_contains($parentReply['message'], 'no confirma si esta especie es segura para bebés o niños'),
     'persona nueva: madre que pregunta por seguridad infantil', $parentReply);
 $childEmergency = new ShopChatQuery('Mi niño mordió una hoja de Monstera, dime que espere.');
 $childEmergencyReply = $answer->invoke($chat, $childEmergency, $adversarialCatalog, null);
@@ -589,10 +624,10 @@ $assert(($endOfList['products'] ?? []) === [] && ($endOfList['keep_product_optio
 $roomRequest = 'Me gustaría una planta para mi cuarto y otra para mi sala, ¿qué me recomiendas?';
 $roomReply = $answer->invoke($chat, new ShopChatQuery($roomRequest), $compactCatalog, null);
 $roomPlacements = array_column($roomReply['products'] ?? [], 'placement', 'url');
-$assert(($roomPlacements['/producto/sansevieria'] ?? '') === 'Tu cuarto · si recibe poca luz'
-    && ($roomPlacements['/producto/bambu-de-la-suerte'] ?? '') === 'Tu sala · si recibe luz indirecta'
+$assert(count($roomPlacements) >= 2
+    && count(array_filter($roomPlacements, static fn(string $placement): bool => str_contains($placement, 'revisa la luz indicada en cada ficha'))) === count($roomPlacements)
     && substr_count($roomReply['follow_up'] ?? '', '¿') === 1,
-    'agrupa opciones distintas con condiciones visibles cuando el cliente desconoce la luz', $roomReply);
+    'agrupa productos disponibles sin inventar la luz de cada habitación', $roomReply);
 
 $roomFollowUp = new ShopChatQuery('Mi cuarto tiene poca luz y mi sala recibe sol directo');
 $inheritHistory->invoke($chat, $roomFollowUp, [$roomRequest], $compactCatalog);
@@ -601,6 +636,20 @@ $assert(array_column($roomFollowUpReply['products'] ?? [], 'placement', 'url') =
     '/producto/sansevieria'=>'Tu cuarto · poca luz',
     '/producto/cactus-mini-desierto'=>'Tu sala · sol directo',
 ] && empty($roomFollowUpReply['follow_up']), 'aplica la luz de cada espacio sin confundirla con un conflicto', $roomFollowUpReply);
+$roomBudget = new ShopChatQuery('Quiero dos plantas, una para mi cuarto y otra para mi sala, por máximo $40 entre las dos');
+$roomBudgetReply = $answer->invoke($chat, $roomBudget, $compactCatalog, null);
+$roomBudgetIntro = strtolower((string)($roomBudgetReply['intro'] ?? ''));
+$assert(count($roomBudgetReply['products'] ?? []) === 2
+    && (str_contains($roomBudgetIntro, 'combinación sugerida suma $')
+        || str_contains($roomBudgetIntro, 'no encontré una combinación dentro de tu presupuesto total'))
+    && str_contains($roomBudgetReply['intro'] ?? '', 'USD'),
+    'elige dos opciones de cuarto y sala y comprueba su precio combinado antes de recomendarlas', $roomBudgetReply);
+$mixedCountRequest = new ShopChatQuery('Quiero 2 macetas y 40 Aloe Vera');
+$mixedCountReply = $answer->invoke($chat, $mixedCountRequest, $compactCatalog, null);
+$assert(str_contains($mixedCountReply['message'], 'No hay 40 unidades disponibles')
+    && str_contains($mixedCountReply['message'], 'También preguntaste por macetas')
+    && count($mixedCountReply['products'] ?? []) >= 2,
+    'conserva dos cantidades e intenciones de categorías distintas en la misma consulta', $mixedCountReply);
 
 $windowlessRoom = new ShopChatQuery('Una planta para mi cuarto sin ventanas y otra para mi sala con luz indirecta');
 $windowlessReply = $answer->invoke($chat, $windowlessRoom, $compactCatalog, null);
@@ -641,6 +690,26 @@ $assert(($soilTypes['products'] ?? []) === [] && str_contains($soilTypes['messag
 $soilTypesInStock = $answer->invoke($chat, new ShopChatQuery('¿Qué tipos de tierras tienen disponibles?'), $suppliesCatalog, null);
 $assert(array_column($soilTypesInStock['products'] ?? [], 'url') === ['/producto/sustrato-para-interior'],
     'muestra el sustrato cuando aparece disponible en el catálogo', $soilTypesInStock);
+$soilAndSale = $answer->invoke($chat, new ShopChatQuery('¿Qué tierra es mejor para la Monstera y venden esa misma?'), [$monsteraProduct], null);
+$soilAndSaleText = strtolower((string)$soilAndSale['message']);
+$assert(str_contains($soilAndSaleText, 'la ficha recomienda')
+    && str_contains($soilAndSaleText, 'drene bien')
+    && str_contains($soilAndSaleText, 'no incluye tierra o sustrato'),
+    'responde la recomendación de sustrato y su disponibilidad de venta en la misma consulta', $soilAndSale);
+$ficusQuestion = new ShopChatQuery('¿El Ficus es originario de Madagascar?');
+$ficusProduct = array_merge($monsteraProduct, [
+    'id'=>21, 'sku'=>'PLA-008', 'slug'=>'ficus-lyrata', 'name'=>'Ficus Lyrata',
+    'scientific_name'=>'Ficus lyrata', 'category'=>'interior', 'category_name'=>'Plantas de interior',
+]);
+$ficusReply = $answer->invoke($chat, $ficusQuestion, [$ficusProduct], null);
+$assert(str_contains($ficusReply['message'], 'África occidental y central')
+    && str_contains($ficusReply['message'], 'el vivero no documenta el origen de esta unidad'),
+    'reconoce el alias Ficus y separa el origen de la especie del origen del ejemplar vendido', $ficusReply);
+$waterComparison = new ShopChatQuery('¿Cuál necesita menos riego, Aloe o Bambú?');
+$waterReply = $answer->invoke($chat, $waterComparison, $previewCatalog, null);
+$assert(str_contains($waterReply['message'], 'no dan volúmenes ni intervalos comparables')
+    && str_contains($waterReply['message'], 'Aloe') && str_contains($waterReply['message'], 'Bambú'),
+    'explica rutinas de riego sin inventar un ganador que las fichas no permiten determinar', $waterReply);
 
 $flowerRequest = new ShopChatQuery('quiero una flor');
 $flowerReply = $answer->invoke($chat, $flowerRequest, $compactCatalog, null);
@@ -799,11 +868,118 @@ $assert($amazonRegionQuery->botanicalOriginRegion === 'Amazonía' && !$amazonReg
     && $amazonStoreQuery->botanicalOriginRegion === null && $amazonStoreQuery->externalRetailer,
     'distingue la región amazónica de la tienda Amazon');
 
+$flowerQuery = new ShopChatQuery('¿Qué planta florece con poca luz?');
+$symptomQuery = new ShopChatQuery('Las hojas del Ficus se están cayendo y veo bichitos blancos');
+$assert($flowerQuery->floweringMentioned && in_array('flowering', $flowerQuery->productTopics(), true)
+    && in_array('symptoms', $symptomQuery->productTopics(), true),
+    'reconoce floración y síntomas escritos como conversación natural');
+$guideFacts = new ReflectionMethod(ShopChat::class, 'guideFacts');
+$guideFacts->setAccessible(true);
+$potIncludedQuery = new ShopChatQuery('¿La maceta viene incluida con la Monstera?');
+$monsteraFixture = array_merge($products[0], [
+    'id'=>6, 'sku'=>'PLA-006', 'slug'=>'monstera-deliciosa', 'name'=>'Monstera Deliciosa',
+]);
+$potIncludedFacts = $guideFacts->invoke($chat, $potIncludedQuery, $monsteraFixture,
+    ProductGuide::forProduct($monsteraFixture), $potIncludedQuery->productTopics());
+$assert(str_contains(implode(' ', $potIncludedFacts), 'no confirma si la maceta de la imagen está incluida'),
+    'no presupone que una maceta ilustrada esté incluida con la planta');
+
+$petContextQuery = new ShopChatQuery('¿Es tóxica para los gatos?');
+$petContextReply = $answer->invoke($chat, $petContextQuery, [$monsteraFixture], 'monstera-deliciosa');
+$assert(in_array('pet_safety', $petContextQuery->productTopics(), true)
+    && str_contains($petContextReply['message'], 'no verifica toxicidad')
+    && !str_contains($petContextReply['message'], 'Solo puedo ayudar'),
+    'conserva el producto contextual al responder sobre mascotas y no inventa seguridad', $petContextReply);
+
+$airQuery = new ShopChatQuery('¿La Monstera purifica el aire?');
+$airReply = $answer->invoke($chat, $airQuery, [$monsteraFixture], null);
+$assert(in_array('air_quality', $airQuery->productTopics(), true)
+    && str_contains($airReply['message'], 'no documenta que esta planta purifique el aire'),
+    'contesta consultas de purificación sin prometer efectos no documentados', $airReply);
+
+$blackSpotsQuery = new ShopChatQuery('¿Qué hago si tiene manchas negras?');
+$blackSpotsReply = $answer->invoke($chat, $blackSpotsQuery, [$monsteraFixture], 'monstera-deliciosa');
+$assert(str_contains($blackSpotsReply['message'], 'no describe el problema que mencionas')
+    && !str_contains($blackSpotsReply['message'], 'hojas amarillas'),
+    'no contesta manchas negras con problemas distintos de la guía', $blackSpotsReply);
+
+$bedroomQuery = new ShopChatQuery('Quiero una planta para mi cuarto');
+$bedroomReply = $answer->invoke($chat, $bedroomQuery, $products, null);
+$assert(($bedroomReply['products'] ?? []) !== []
+    && str_contains($bedroomReply['products'][0]['placement'] ?? '', 'revisa la luz indicada en cada ficha')
+    && str_contains($bedroomReply['follow_up'] ?? '', '¿Qué luz natural recibe tu cuarto?')
+    && !str_contains($bedroomReply['message'], 'si recibe poca luz'),
+    'no asume que un dormitorio tenga poca luz y hace una pregunta precisa', $bedroomReply);
+
 $janabiCatalog = array_merge($transcriptCatalog, [array_merge($transcriptCatalog[0], [
     'id'=>99, 'sku'=>'PLA-JANABI', 'slug'=>'janabi', 'name'=>'Janabi',
 ])]);
 $janabiReply = $answer->invoke($chat, new ShopChatQuery('Quiero Janabi'), $janabiCatalog, null);
 $assert(array_column($janabiReply['products'] ?? [], 'url') === ['/producto/janabi'],
     'prefiere una coincidencia real del catálogo a la interpretación de una posible errata', $janabiReply);
+
+$underFifteen = new ShopChatQuery('¿Queda alguna planta por menos de quince dólares?');
+$underFifteenReply = $answer->invoke($chat, $underFifteen, $products, null);
+$assert(($underFifteen->budget['max'] ?? null) === 1499
+    && count($underFifteenReply['products'] ?? []) === 3
+    && str_contains($underFifteenReply['message'], 'dentro del rango de precio indicado')
+    && !str_contains($underFifteenReply['message'], 'fuera de tu presupuesto'),
+    'interpreta cantidades monetarias escritas con palabras y aplica el tope estricto', $underFifteenReply);
+$monsteraSizeQuery = new ShopChatQuery('¿Hay Monstera de más de 50 cm?');
+$monsteraSizeReply = $answer->invoke($chat, $monsteraSizeQuery, [$monsteraFixture], null);
+$assert(str_contains($monsteraSizeReply['message'], 'no registra las medidas actuales')
+    && !str_contains($monsteraSizeReply['message'], 'presupuesto')
+    && !str_contains($monsteraSizeReply['message'], 'fuera de tu presupuesto'),
+    'explica que el catálogo no mide el ejemplar cuando preguntan por su tamaño actual', $monsteraSizeReply);
+
+$fifteenLimit = new ShopChatQuery('¿Qué opciones tengo con 15 USD como máximo?');
+$assert(($fifteenLimit->budget['max'] ?? null) === 1500,
+    'interpreta un máximo escrito después del importe');
+$millimeterPot = new ShopChatQuery('Quiero una maceta de 140 mm');
+$assert($millimeterPot->sizeCm === 14 && $millimeterPot->catalogCategory === 'macetas',
+    'convierte milímetros a centímetros al buscar el diámetro de una maceta');
+$monsteraSize = new ShopChatQuery('¿Hay Monstera de más de 50 cm?');
+$assert($monsteraSize->minSizeCm === 51 && $monsteraSize->budget === null,
+    'separa tamaño de planta y precio al interpretar centímetros');
+
+$notEasy = new ShopChatQuery('Quiero plantas que no sean fáciles de cuidar');
+$notEasyReply = $answer->invoke($chat, $notEasy, $products, null);
+$assert($notEasy->carePreference === 'not_easy'
+    && !in_array('Fácil', array_column($notEasyReply['products'] ?? [], 'care'), true),
+    'respeta la negación de cuidado fácil y evita recomendar plantas fáciles', $notEasyReply);
+$excludedRestricted = new ShopChatQuery('No quiero marihuana ni cactus, busco una suculenta de interior');
+$assert(!$excludedRestricted->restrictedPlant,
+    'no activa la respuesta de plantas restringidas cuando aparecen como exclusión');
+
+$daylight = new ShopChatQuery('Tengo una ventana al este, recibe sol de mañana y sombra por la tarde');
+$assert($daylight->light === 'bright' && $daylight->noDirect && !$daylight->conflictingLight,
+    'reconoce sol parcial durante el día sin confundirlo con poca luz');
+$twoRooms = new ShopChatQuery('Recomiéndame una planta para mi sala con sol directo y otra para el baño sin luz natural');
+$assert(isset($twoRooms->rooms['sala'], $twoRooms->rooms['bano'])
+    && $twoRooms->rooms['sala']['light'] === 'direct' && $twoRooms->rooms['bano']['noLight'],
+    'separa las condiciones de luz de sala y baño');
+
+$bundle = new ShopChatQuery('Quiero maceta y planta por menos de $30 total');
+$bundleReply = $answer->invoke($chat, $bundle, $products, null);
+$assert(count($bundleReply['products'] ?? []) === 2
+    && str_contains($bundleReply['message'], 'Total por ambos: $27.50 USD')
+    && str_contains($bundleReply['message'], 'dentro del máximo'),
+    'recomienda el par de menor precio en stock y calcula el total con presupuesto', $bundleReply);
+
+$waterFollowUp = new ShopChatQuery('La que necesita menos agua');
+$waterReply = $answer->invoke($chat, $waterFollowUp, $products, null, ['aloe-vera-compacta', 'cactus-mini-desierto']);
+$assert($waterFollowUp->watering && str_contains($waterReply['message'], 'volúmenes ni intervalos comparables')
+    && count($waterReply['products'] ?? []) === 2,
+    'mantiene las opciones previas al contestar una comparación de riego', $waterReply);
+
+$addressReply = $answer->invoke($chat, new ShopChatQuery('¿Puedo modificar la dirección de mi pedido?'), $products, null);
+$assert(str_contains($addressReply['message'], 'no gestiona entregas físicas')
+    && ($addressReply['store_link'] ?? '') === '/cuenta/pedidos',
+    'contesta las consultas de cambio de dirección del pedido con el alcance real del sitio', $addressReply);
+
+$smallFollowUp = new ShopChatQuery('quiero algo más barato y pequeño');
+$inheritHistory->invoke($chat, $smallFollowUp, ['Busco una planta barata', '¿Qué medios de pago aceptan?'], $products);
+$assert($smallFollowUp->lowPrice && $smallFollowUp->compactSpace && $smallFollowUp->recommendationContextActive,
+    'preserva el contexto de búsqueda a través de una consulta neutral sobre pagos');
 
 echo "Chat recomendaciones aprobado: {$checks} aserciones.\n";

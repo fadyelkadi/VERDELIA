@@ -52,6 +52,7 @@ $modelChart=['labels'=>array_column($analyticsModelSeries,'label'),'actual'=>arr
   <div class="admin-content">
     <div class="admin-topline"><div><p class="eyebrow">VERDELIA · Administración</p><h1><?= h($adminTitle) ?></h1></div><a class="button button-small button-outline" href="/">Volver a la tienda <?= icon('arrow',15) ?></a></div>
     <?php if(isset($flash['message'])&&is_string($flash['message'])): ?><p class="admin-feedback <?= ($flash['type']??'')==='success'?'is-success':'is-error' ?>" role="status"><?= h($flash['message']) ?></p><?php endif; ?>
+    <?php if($adminSection==='' || $adminSection==='analitica'): ?><p class="admin-feedback is-error" role="note">Datos de demostración: los pedidos aprobados se procesan con un simulador. Las ventas y tendencias no representan transacciones reales.</p><?php endif; ?>
 
     <?php if($adminSection===''): ?>
       <div class="metric-grid admin-metric-grid">
@@ -63,7 +64,7 @@ $modelChart=['labels'=>array_column($analyticsModelSeries,'label'),'actual'=>arr
           ['Pedidos',(int)($dashboard['orders_total']??0),'Todos los estados'],
           ['Pendientes',(int)($dashboard['orders_pending']??0),'Esperando pago'],
           ['Pagados',(int)($dashboard['orders_paid']??0),'Pagados o entregados'],
-          ['Ventas confirmadas',money((int)($dashboard['confirmed_sales']??0)),'Solo pago aprobado'],
+          ['Ventas simuladas',money((int)($dashboard['confirmed_sales']??0)),'Pagos aprobados en el simulador'],
         ] as $i=>$metric): ?><article class="metric-card"><span><?= h($metric[0]) ?></span><strong><?= h($metric[1]) ?></strong><small><?= h($metric[2]) ?></small><i><?= str_pad((string)($i+1),2,'0',STR_PAD_LEFT) ?></i></article><?php endforeach; ?>
       </div>
       <section class="admin-table-panel"><div class="admin-panel-heading"><div><p class="eyebrow">Actividad reciente</p><h2>Últimos pedidos</h2></div><a href="/admin/pedidos" class="text-link">Ver pedidos <?= icon('arrow',15) ?></a></div>
@@ -75,7 +76,7 @@ $modelChart=['labels'=>array_column($analyticsModelSeries,'label'),'actual'=>arr
 
     <?php elseif($adminSection==='analitica' && $analytics!==null): ?>
       <section class="admin-table-panel analytics-filter-panel">
-        <div class="admin-panel-heading"><div><p class="eyebrow">Análisis de ventas</p><h2>Filtra por período y producto</h2></div><span class="status-tag status-pagado">Ventas confirmadas</span></div>
+        <div class="admin-panel-heading"><div><p class="eyebrow">Análisis de ventas</p><h2>Filtra por período y producto</h2></div><span class="status-tag status-pagado">Ventas simuladas</span></div>
         <?php if(($adminAnalyticsError??'')!==''): ?><p class="admin-feedback is-error" role="alert"><?= h($adminAnalyticsError) ?> Se muestran las fechas predeterminadas.</p><?php endif; ?>
         <?php if(($analytics['product_error']??'')!==''): ?><p class="admin-feedback is-error" role="alert"><?= h($analytics['product_error']) ?></p><?php endif; ?>
         <form class="admin-filters analytics-filters" method="get" action="/admin/analitica">
@@ -92,7 +93,7 @@ $modelChart=['labels'=>array_column($analyticsModelSeries,'label'),'actual'=>arr
       <div class="metric-grid analytics-metric-grid">
         <?php foreach([
           ['Ingresos de productos',money((int)$analyticsMetrics['revenue_cents']),$growthText($analyticsMetrics['growth']['revenue_cents']??null)],
-          ['Pedidos confirmados',(int)$analyticsMetrics['confirmed_orders'],$growthText($analyticsMetrics['growth']['confirmed_orders']??null)],
+          ['Pedidos aprobados en simulación',(int)$analyticsMetrics['confirmed_orders'],$growthText($analyticsMetrics['growth']['confirmed_orders']??null)],
           ['Unidades vendidas',(int)$analyticsMetrics['units'],$growthText($analyticsMetrics['growth']['units']??null)],
           ['Ganancia bruta estimada',money((int)$analyticsMetrics['gross_profit_cents']),$growthText($analyticsMetrics['growth']['gross_profit_cents']??null)],
         ] as $i=>$metric): ?><article class="metric-card"><span><?= h($metric[0]) ?></span><strong><?= h((string)$metric[1]) ?></strong><small><?= h($metric[2]) ?></small><i><?= str_pad((string)($i+1),2,'0',STR_PAD_LEFT) ?></i></article><?php endforeach; ?>

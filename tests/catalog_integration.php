@@ -38,6 +38,14 @@ try {
     check($filtered['total'] >= 2, 'categoría, precio y disponibilidad filtran en SQL');
     $searched = $repo->listing(array_merge($baseFilters,['query'=>'Monstera']),1,8);
     check($searched['total'] === 1 && $searched['items'][0]['sku'] === 'PLA-006', 'la búsqueda por palabra devuelve el producto esperado');
+    $aliasSearch = $repo->listing(array_merge($baseFilters,['query'=>'costilla de Adán']),1,8);
+    check($aliasSearch['total'] === 1 && $aliasSearch['items'][0]['sku'] === 'PLA-006', 'la búsqueda por el nombre común alternativo encuentra la Monstera');
+    $spellingSearch = $repo->listing(array_merge($baseFilters,['query'=>'Sanseveria']),1,8);
+    check($spellingSearch['total'] === 1 && $spellingSearch['items'][0]['sku'] === 'PLA-007', 'la búsqueda tolera la variante común “Sanseveria”');
+    $directLight = $repo->listing(array_merge($baseFilters,['light'=>['directa']]),1,20);
+    check($directLight['total'] > 0 && count(array_filter($directLight['items'],static fn(array $item): bool => stripos((string)$item['light'],'indirecta') !== false)) === 0, 'el filtro de sol directo no incluye luz indirecta');
+    $lowLight = $repo->listing(array_merge($baseFilters,['light'=>['baja']]),1,20);
+    check($lowLight['total'] > 0 && count(array_filter($lowLight['items'],static fn(array $item): bool => stripos((string)$item['light'],'baja') !== false || stripos((string)$item['light'],'poca') !== false)) === $lowLight['total'], 'el filtro de poca luz devuelve solo fichas compatibles');
     $injection = $repo->listing(array_merge($baseFilters,['query'=>"%' OR 1=1 --"]),1,8);
     check($injection['total'] === 0, 'el texto de búsqueda no altera la consulta SQL');
     $ascending = $repo->listing(array_merge($baseFilters,['sort'=>'price-asc']),1,12);

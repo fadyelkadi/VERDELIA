@@ -4,24 +4,24 @@ Tienda de plantas, macetas y accesorios. Incluye catálogo e inventario MySQL, a
 
 ## Requisitos
 
-- Windows y PHP 8.0 o posterior con `pdo_mysql` habilitado (se recomienda el PHP de XAMPP).
-- MySQL/MariaDB de XAMPP activo, normalmente en `127.0.0.1:3306`.
+- Windows y **XAMPP 8.0.28** completo (PHP 8.0.28, Apache y `pdo_mysql`).
+- MySQL de XAMPP activo, normalmente en `127.0.0.1:3306`.
 - El usuario configurado necesita permiso para crear `verdelia_demo` la primera vez.
-- Navegador moderno. No se necesita Apache, internet, Node.js, Composer ni instalar el proyecto en `htdocs`.
+- Navegador moderno. No se necesita internet, Node.js ni Composer.
 
 ## Ejecutar
 
 1. Inicia MySQL en XAMPP Control Panel.
 2. Haz doble clic en `INICIAR_VERDELIA.bat`.
-3. El lanzador selecciona automáticamente un puerto local libre desde 8088; también puedes fijarlo con `VERDELIA_WEB_PORT`.
-4. Valida PHP y `pdo_mysql`, inicializa esquema/semilla idempotentemente y abre `http://localhost:<puerto>/`.
-5. Detén el servidor con Ctrl+C antes de retirar el USB.
+3. El lanzador valida la versión exacta de PHP, inicializa la base y arranca Apache de XAMPP con una configuración aislada en el puerto 8088.
+4. Abre `http://localhost:8088/`.
+5. Detén Apache con Ctrl+C antes de retirar el USB.
 
-El lanzador sirve únicamente `public/` y escucha en las dos direcciones de loopback (`localhost` por IPv6 y `127.0.0.1` por IPv4), sin exponer la tienda a otras PCs. Guarda la carpeta fuera de `C:\xampp\htdocs` para evitar que Apache exponga por error archivos internos si se activa. No uses `php -S` como servidor de red o de producción; para que otras PCs accedan, configura un servidor PHP real con document root limitado a `public/` y acceso a MySQL.
+Apache sirve únicamente `public/` y escucha en `127.0.0.1:8088`; la tienda no queda expuesta a otras PCs. La configuración temporal se deriva del `httpd.conf` de XAMPP y no modifica sus archivos instalados. El lanzador no utiliza el servidor PHP integrado.
 
-El lanzador busca XAMPP junto al proyecto, en `VERDELIA_XAMPP_HOME`/`XAMPP_HOME`, en rutas comunes/unidades y finalmente en `PATH`. Si la instalación tiene otra ubicación, define `VERDELIA_XAMPP_HOME` (raíz de XAMPP) o `VERDELIA_PHP_EXE` (ruta a `php.exe`) en CMD. Para cambiar conexión, define `VERDELIA_DB_HOST`, `VERDELIA_DB_PORT`, `VERDELIA_DB_NAME`, `VERDELIA_DB_USER` y `VERDELIA_DB_PASSWORD`. El archivo `.env.example` es una plantilla documental; Windows no lo carga por sí solo. No pongas claves en Git ni en argumentos de comandos.
+Si XAMPP está en otra ubicación, define `VERDELIA_XAMPP_HOME` (raíz de XAMPP) antes de ejecutar el BAT. Para cambiar conexión, define `VERDELIA_DB_HOST`, `VERDELIA_DB_PORT`, `VERDELIA_DB_NAME`, `VERDELIA_DB_USER` y `VERDELIA_DB_PASSWORD`. El archivo `.env.example` es una plantilla documental; Windows no lo carga por sí solo. No pongas claves en Git ni en argumentos de comandos.
 
-Para iniciar el servidor sin abrir otra pestaña (por ejemplo, desde una consola de prueba), define `VERDELIA_OPEN_BROWSER=0` antes de ejecutar el lanzador. El valor predeterminado abre la dirección local automáticamente.
+Si el puerto 8088 está ocupado, cierra el proceso local que lo usa antes de iniciar VERDELIA.
 
 ## Asistente de la tienda
 
@@ -38,7 +38,7 @@ set "VERDELIA_PYTHON_EXE=C:\ruta\a\python.exe"
 INICIAR_VERDELIA.bat
 ```
 
-El ZIP incluye el script de Python. En las PCs con XAMPP, el cálculo se ejecuta en PHP cuando Python no está configurado o no responde.
+El ZIP incluye el script de Python. En XAMPP 8.0.28, el cálculo se ejecuta en PHP cuando Python no está configurado o no responde.
 
 ## Base local y cuentas de prueba
 

@@ -4,10 +4,10 @@
 
 ## Preparar el equipo
 
-1. Abrir XAMPP Control Panel e iniciar **MySQL**. Apache no es necesario para el servidor local de PHP que lanza VERDELIA.
+1. Abrir XAMPP Control Panel e iniciar **MySQL**. El lanzador inicia el Apache incluido en XAMPP y requiere PHP 8.0.28.
 2. Confirmar que MySQL aparece activo en el puerto configurado (por defecto `3306`). Si XAMPP reporta conflicto o apagado inesperado, revisar sus Logs antes de iniciar otro servidor MySQL.
 3. Abrir la carpeta raíz del proyecto y ejecutar `INICIAR_VERDELIA.bat`.
-4. Esperar el mensaje de inicialización correcta y abrir la dirección local mostrada (por defecto `http://127.0.0.1:8088/`). El lanzador selecciona un puerto alternativo si el predeterminado está ocupado.
+4. Esperar la validación de Apache y abrir `http://localhost:8088/`. El servidor solo escucha en loopback; si 8088 está ocupado, cierra el proceso que lo usa.
 5. En el workspace principal, las cuentas académicas están en `docs/CREDENCIALES_DEMO.local.md`, archivo local excluido de Git y de la sincronización Desktop. El bootstrap local contiene los usuarios demo. Para una exposición, usar solo cuentas ficticias y no mostrar datos personales.
 
 ## Recorrido sugerido (5–7 minutos)

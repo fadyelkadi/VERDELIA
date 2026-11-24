@@ -1,5 +1,7 @@
 # Pruebas finales y estado de entrega
 
+Actualización 2026-11-24: se recuperó el XAMPP 8.0.28-0 que ya estaba instalado. Se restauraron los binarios/extensiones PHP 8.0.28 que faltaban desde una copia local del mismo build y se reparó `mysql.db` desde el respaldo incluido, conservando una copia completa de la carpeta de datos. PHP y `pdo_mysql` cargan sin avisos; Apache pasa `httpd.exe -t`; el bootstrap conserva la semilla y la home responde HTTP 200 en `127.0.0.1:8088`. LocalWP ocupa 80/443; el lanzador de VERDELIA usa 8088. Chatbot: 170 aserciones aprobadas con PHP de XAMPP. No se encontró el instalador en Descargas, pero no hizo falta reinstalar. Estado detallado en `COMPATIBILIDAD_PHP.md`.
+
 Actualización 2026-11-10: corregida la incompatibilidad PHP 8.0 que apareció en URBE. Con PHP 8.0.28 pasaron las integraciones de analítica (32), administración HTTP (27) y checkout HTTP (32) en bases temporales; queda resuelta la integración pendiente indicada más abajo. Ver `docs/COMPATIBILIDAD_PHP.md`. La comprobación física en URBE del paquete corregido sigue pendiente.
 
 Actualizado: 2026-11-04. Alcance: tienda local VERDELIA, XAMPP MariaDB, migración analítica, respaldo final y preparación de documentación.
@@ -33,7 +35,7 @@ Actualizado: 2026-11-04. Alcance: tienda local VERDELIA, XAMPP MariaDB, migraci�
 
 ## Estado de XAMPP y portátil
 
-Comprobación actual de solo lectura por PDO: MariaDB `10.4.32-MariaDB`, puerto `3306`, directorio `C:\xampp\mysql\data`. El bootstrap volvió a responder y conserva datos. El panel XAMPP muestra Apache activo en `8080` y `4433`; Local/Nginx ocupa `80`/`443`, por lo que el puerto alterno evita el choque. VERDELIA inicia su propio servidor PHP local y no depende de Apache.
+**Evidencia histórica del 4 de noviembre de 2026, no comprobación actual:** PDO respondió a MariaDB `10.4.32-MariaDB` en el puerto `3306`, y el bootstrap conservó la base. La nota del panel XAMPP sobre puertos alternos describe aquel entorno y ya no representa el lanzador vigente, que sirve el sitio con Apache de XAMPP.
 
 El `mysql_error.log` conserva un intento anterior fallido con `ibdata1 must be writable`; esa línea no es el estado presente: XAMPP/MariaDB respondió a la consulta de versión y al bootstrap. No cambié `my.ini`, ACL ni archivos de datos durante esta validación. Los resultados no demuestran que el hardware de una memoria USB funcione en otra PC.
 

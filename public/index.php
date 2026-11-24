@@ -198,11 +198,12 @@ if ($path === '/') {
                 $raw = $_GET[$priceKey] ?? null;
                 if (is_string($raw) && preg_match('/^\d{1,9}$/', $raw) === 1) $filters[$priceKey] = min(100000000, (int)$raw);
             }
+            if ($filters['max_price'] !== null) $filters['max_price'] = min(6000, max(1000, $filters['max_price']));
             $filters['in_stock'] = ($_GET['in_stock'] ?? '') === '1';
             $requestedCare = is_array($_GET['care'] ?? null) ? array_filter($_GET['care'], 'is_string') : [];
             $requestedLight = is_array($_GET['light'] ?? null) ? array_filter($_GET['light'], 'is_string') : [];
             $filters['care'] = array_values(array_intersect(['Fácil','Media'], $requestedCare));
-            $filters['light'] = array_values(array_intersect(['directa','indirecta','brillante'], $requestedLight));
+            $filters['light'] = array_values(array_intersect(['baja','directa','indirecta','brillante'], $requestedLight));
             $sort = is_string($_GET['sort'] ?? null) ? $_GET['sort'] : 'featured';
             $filters['sort'] = in_array($sort, ['featured','price-asc','price-desc','name','recent'], true) ? $sort : 'featured';
             $rawPage = $_GET['page'] ?? '1';

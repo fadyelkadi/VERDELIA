@@ -43,6 +43,9 @@ final class ShopChatQuery
     public bool $compactSpace;
     public ?bool $unusualAppearance;
     public bool $romanticGift;
+    public bool $floweringMentioned;
+    public bool $distinctItems;
+    public bool $outdoorMentioned;
     public bool $compactSpaceMentioned;
     public bool $temperatureMentioned;
     public bool $skipPreferences;
@@ -97,8 +100,8 @@ final class ShopChatQuery
         $medicalCondition = preg_match('/\b(asma|alergi\w*|insomnio|ansiedad|depresion|diabetes|infeccion\w*|cancer|hipertension|presion arterial)\b/u', $text) === 1;
         $medicalAction = preg_match('/\b(cura\w*|curar|trata\w*|alivia\w*|previene\w*|remedio\w*|medicinal|ayuda con|ayuda a|sirve para|healing|treats?|cures?)\b/u', $text) === 1;
         $this->medicalClaim = $medicalCondition && ($medicalAction || preg_match('/\b(plantas?|remedios?)\b/u', $text) === 1);
-        $this->unsupportedPlantEffect = preg_match('/\b(humedad|moho|mold|mould)\b/u', $text) === 1
-            && preg_match('/\b(elimina\w*|absorbe\w*|quita\w*|reduce\w*|controla\w*|remueve\w*|remove\w*|absorb\w*)\b/u', $text) === 1;
+        $this->unsupportedPlantEffect = preg_match('/\b(humedad|moho|mold|mould|hongo\w*)\b/u', $text) === 1
+            && preg_match('/\b(elimin\w*|absor\w*|quit\w*|reduc\w*|control\w*|remuev\w*|remov\w*|preveng\w*|evit\w*|acabar con|hacer desaparecer|deshumidific\w*)\b/u', $text) === 1;
         $this->temperatureMentioned = preg_match('/\b(?:grados|temperaturas?|calor|caluros\w*|calid[oa]s?|frio|fri[oa]s?|heladas?|clima tropical)\b/u', $text) === 1;
         $climateMention = $this->temperatureMentioned || preg_match('/\b(sequia|viento)\b/u', $text) === 1;
         $specificTemperature = preg_match('/(?<![\d.,])[-+]?\d{1,3}(?:[.,]\d+)?\s*(?:°\s*[cf]|grados(?:\s+[cf])?)(?![\w\d])/u', $folded) === 1;
@@ -106,22 +109,36 @@ final class ShopChatQuery
         $this->unsupportedClimateRequirement = ($specificTemperature && $asksAboutPlant) || ($climateMention
             && preg_match('/\b(resist\w*|aguant\w*|sobreviv\w*|toler\w*|soport\w*|prosper\w*|crezca[n]?|crece[n]?|adaptad[oa]s?|para (?:un |una |ese |este )?clima|para (?:el )?(?:frio|calor)|para (?:zonas?|ambientes?) fri[oa]s?)\b/u', $text) === 1);
         $amazonRegion = preg_match('/\b(?:amazonas|amazonia|amazonic[oa]s?|amazonian[as]?)\b/u', $text) === 1;
+        $this->floweringMentioned = preg_match('/\b(?:flor(?:es|ecer|e)?|florec\w*)\b/u', $text) === 1;
+        $this->distinctItems = preg_match('/\b(?:diferentes?|distintas?|varias especies|una de cada)\b/u', $text) === 1;
+        $this->outdoorMentioned = preg_match('/\b(?:exterior|exteriores|patio|jardin|terraza|balcon|aire libre|afuera)\b/u', $text) === 1;
         $botanicalReference = preg_match('/\b(plantas?|arbol(?:es)?|especies?|flora|vegetacion|cactus|suculentas?|palmas?|monstera|esas|estas|ellas|son|sean)\b/u', $text) === 1;
-        $originWording = preg_match('/\b(?:de|del|desde|nativ[oa]s?|originari[oa]s?|proceden(?:cia)?|provienen?|vienen?|venga[n]?|son de|sean de|de donde)\b/u', $text) === 1;
-        $this->botanicalOriginRegion = $amazonRegion && ($botanicalReference || $originWording) ? 'Amazonía' : null;
+        $originWording = preg_match('/\b(?:nativ[oa]s?|originari[oa]s?|proceden(?:cia)?|origen|provienen?|vienen?|venga[n]?|son de|es de|sean de|de donde)\b/u', $text) === 1;
+        $region = match (true) {
+            $amazonRegion => 'Amazonía',
+            preg_match('/\b(?:venezuela|venezolan[oa]s?)\b/u', $text) === 1 => 'Venezuela',
+            preg_match('/\b(?:colombia|colombian[oa]s?)\b/u', $text) === 1 => 'Colombia',
+            preg_match('/\b(?:mexico|mexican[oa]s?)\b/u', $text) === 1 => 'México',
+            default => null,
+        };
+        $regionalOriginPhrase = $originWording || ($amazonRegion && $botanicalReference) || ($botanicalReference
+            && preg_match('/\b(?:de|del|de la) (?:amazonas|amazonia|venezuela|colombia|mexico)\b/u', $text) === 1
+            && preg_match('/\b(?:envio|entrega|mandar|enviar|despachar)\b/u', $text) !== 1);
+        $this->botanicalOriginRegion = $region !== null && $regionalOriginPhrase ? $region : null;
         $amazonRetailer = preg_match('/\bamazon\b/u', $text) === 1 && $this->botanicalOriginRegion === null;
         $this->externalRetailer = preg_match('/\b(ikea|sodimac|homecenter|epa)\b/u', $text) === 1 || $amazonRetailer;
         $this->transactionIntent = preg_match('/\b(apartame|apartar|reserva(?:me|r)?|comprame|comprar|comprarl[oa]s?|ordenar|ordenamelo|hazme (?:un )?pedido|realiza(?:r)? (?:un )?pedido)\b/u', $text) === 1;
-        $this->restrictedPlant = preg_match('/\b(cannabis|marihuana|marijuana|canamo|weed|ganja)\b/u', $text) === 1;
+        // A restricted plant mentioned only as an explicit exclusion is not a request to buy it.
+        $this->restrictedPlant = preg_match('/\b(cannabis|marihuana|marijuana|canamo|weed|ganja)\b/u', $this->productText) === 1;
         $this->possibleRestrictedName = preg_match('/\bjanabi\b/u', $this->productText) === 1;
         $this->noLight = $this->lacksNaturalLight($text);
-        $easyNegative = preg_match('/\b(?:(?:me da igual|no (?:me )?importa)\s+(?:(?:el|su)\s+)?(?:nivel de )?cuidados?|(?:no (?:me importa|es necesario|hace falta|tiene que ser)|no importa si (?:es|sea))\s+(?:que sea\s+)?(?:facil|sencill[oa]))\b/u', $text) === 1;
+        $easyNegative = preg_match('/\b(?:(?:me da igual|no (?:me )?importa)\s+(?:(?:el|su)\s+)?(?:nivel de )?cuidados?|(?:no (?:me importa|es necesario|hace falta|tiene que ser)|no importa si (?:es|sea))\s+(?:que sea\s+)?(?:facil|sencill[oa])|que no (?:sea|sean) (?:facil|faciles|sencill[oa]s?)|no quiero (?:una planta )?(?:facil|faciles|sencill[oa]s?) de cuidar)\b/u', $text) === 1;
         $easyPositive = preg_match('/\b(facil|faciles|sencilla|sencillo|principiantes?|poco cuidado|bajo mantenimiento)\b/u', $text) === 1;
         $advanced = preg_match('/\b(?:de cuidado|cuidados?|mantenimiento) (?:dificil|dificiles|avanzad[oa]s?)\b|\b(?:dificil|dificiles) de cuidar\b|^(?:avanzad[oa]|dificil)$/u', $text) === 1;
         $this->easyMentioned = $easyNegative || $easyPositive || $advanced;
-        $this->carePreference = $easyNegative ? null : ($advanced ? 'advanced' : ($easyPositive ? 'easy' : null));
+        $this->carePreference = $easyNegative ? 'not_easy' : ($advanced ? 'advanced' : ($easyPositive ? 'easy' : null));
         $this->easy = $this->carePreference === 'easy';
-        $this->watering = preg_match('/\b(riegos?|regar(?:l[oa]s?)?|riega|regarse|riegue|cuanta agua|(?:le )?echo agua|ponerle agua)\b/u', $text) === 1;
+        $this->watering = preg_match('/\b(riegos?|regar(?:l[oa]s?)?|riega|regarse|riegue|cuanta agua|(?:le )?echo agua|ponerle agua|necesita menos agua|requiere menos agua|consume menos agua|menos agua)\b/u', $text) === 1;
         $this->care = $this->watering || preg_match('/\b(cuidados?|cuidar|cuido|cuida|cuidarla|cuidarlo|mantenimiento)\b/u', $text) === 1;
         $this->trend = preg_match('/\b(ventas?|demanda|tendencia|proyeccion|estimacion|estiman|estimado|prevision|predecir|pronostic\w*|vendera[n]?|venderia[n]?|vendieron)\b/u', $text) === 1;
         $this->unsupportedHorizon = preg_match(
@@ -137,21 +154,29 @@ final class ShopChatQuery
             || preg_match('/(?:'.self::USD.'\s*'.self::AMOUNT.'|'.self::AMOUNT.'\s*'.self::USD.')/u', $folded) === 1;
         $unlimitedBudget = preg_match('/'.self::NO_BUDGET.'/u', $folded) === 1;
         $this->budgetMentioned = $this->budgetMentioned || $unlimitedBudget;
-        $measureUnit = '(?:\s*(?:cm|centimetros)|\s+de diametro)\b';
-        $rangePattern = '/\b(?:entre|de)\s+(\d{1,3})(?:'.$measureUnit.')?\s+(?:y|a)\s+(\d{1,3})'.$measureUnit.'/u';
-        $maxMeasurePattern = '/\b(?:hasta|maximo(?: de)?|como mucho|no mas de)\s+(\d{1,3})'.$measureUnit.'/u';
+        $measureUnit = '(?:\s*(?:cm|centimetros|mm|milimetros)|\s+de diametro)\b';
+        $rangePattern = '/\b(?:entre|de)\s+(\d{1,3})(?:\s*(?:cm|centimetros|mm|milimetros))?\s+(?:y|a)\s+(\d{1,3})'.$measureUnit.'/u';
+        $maxMeasurePattern = '/\b(?:hasta|maximo(?: de)?|como mucho|no mas de|menos de|por debajo de|menor(?:es)? (?:de|a)|sin superar)\s+(\d{1,3})'.$measureUnit.'/u';
+        $minMeasurePattern = '/\b(?:mas de|mayor(?:es)? (?:de|a)|por encima de|al menos|como minimo)\s+(\d{1,3})'.$measureUnit.'/u';
         $this->maxSizeCm = null;
         $budgetText = $folded;
         if (preg_match($rangePattern, $folded, $measure)) {
-            $this->minSizeCm = min((int)$measure[1], (int)$measure[2]);
-            $this->maxSizeCm = max((int)$measure[1], (int)$measure[2]);
+            $scale = preg_match('/\b(?:mm|milimetros)\b/u', $measure[0]) === 1 ? 10 : 1;
+            $this->minSizeCm = (int)floor(min((int)$measure[1], (int)$measure[2]) / $scale);
+            $this->maxSizeCm = (int)ceil(max((int)$measure[1], (int)$measure[2]) / $scale);
             $budgetText = preg_replace($rangePattern, ' ', $folded) ?? $folded;
         } elseif (preg_match($maxMeasurePattern, $folded, $measure)) {
-            $this->maxSizeCm = (int)$measure[1];
+            $scale = preg_match('/\b(?:mm|milimetros)\b/u', $measure[0]) === 1 ? 10 : 1;
+            $this->maxSizeCm = (int)ceil((int)$measure[1] / $scale);
             $budgetText = preg_replace($maxMeasurePattern, ' ', $folded) ?? $folded;
+        } elseif (preg_match($minMeasurePattern, $folded, $measure)) {
+            $scale = preg_match('/\b(?:mm|milimetros)\b/u', $measure[0]) === 1 ? 10 : 1;
+            $this->minSizeCm = (int)floor((int)$measure[1] / $scale) + (preg_match('/\b(?:mas de|mayor(?:es)?|por encima de)\b/u', $measure[0]) === 1 ? 1 : 0);
+            $budgetText = preg_replace($minMeasurePattern, ' ', $folded) ?? $folded;
         }
         $explicitBudgetCap = preg_match('/\b(?:hasta|maximo(?: de)?|menos de|por debajo de|no (?:cueste(?:n)? )?mas de|tope(?: total)?(?: de)?|presupuesto(?: total)?(?: (?:es|de))?)\s+(?:'.self::USD.'\s*)?\d/u', $budgetText) === 1;
         $this->conflictingBudget = $unlimitedBudget && $explicitBudgetCap;
+        $budgetText = $this->normalizeTextualMoney($budgetText);
         $this->budget = $this->parseBudget($budgetText);
         $this->budgetMentioned = $this->budgetMentioned || $this->budget !== null;
         $this->standaloneNumber = preg_match('/^\s*[1-9]\d{0,2}\s*$/D', $folded) ? (int)$folded : null;
@@ -161,18 +186,23 @@ final class ShopChatQuery
         $invalidCount = '(?:-\s*\d+(?:[.,]\d+)?|\d+[.,]\d+)';
         $this->invalidQuantity = preg_match('/(?:\b(?:hay|tienen?|tienes|quedan?|necesito|quiero|busco|comprar)\s+'.$invalidCount.'(?=\s+[a-z])(?!\s+(?:cm|mm|m|usd|dolares?|euros?|bolivares?)\b)|(?<![\d.,-])'.$invalidCount.'\s+(?:unidades|ejemplares|piezas)\b)/u', $folded) === 1;
         $this->quantity = $this->parseQuantity($text);
-        $this->sizeCm = $this->maxSizeCm === null && preg_match('/(?<![\d.,-])\b(\d{1,3})(?:\s*(?:cm|centimetros)\b|\s+de diametro\b)/u', $folded, $size) ? (int)$size[1] : null;
+        $this->sizeCm = $this->maxSizeCm === null && $this->minSizeCm === null && preg_match('/(?<![\d.,-])\b(\d{1,3})(?:\s*(?:cm|centimetros|mm|milimetros)\b|\s+de diametro\b)/u', $folded, $size)
+            ? (int)floor((int)$size[1] / (preg_match('/\b(?:mm|milimetros)\b/u', $size[0]) === 1 ? 10 : 1)) : null;
         $this->containerSizeCm = null;
         if ($this->catalogCategory === 'plantas'
-            && preg_match('/\bpara\s+(?:(?:una|la|mi|esta)\s+)?maceta\s+de\s+(\d{1,3})\s*(?:cm|centimetros)\b/u', $text, $container)) {
-            $this->containerSizeCm = (int)$container[1];
+            && preg_match('/\bpara\s+(?:(?:una|la|mi|esta)\s+)?maceta\s+de\s+(\d{1,3})\s*(cm|centimetros|mm|milimetros)\b/u', $text, $container)) {
+            $this->containerSizeCm = (int)floor((int)$container[1] / (in_array($container[2], ['mm','milimetros'], true) ? 10 : 1));
             if ($this->sizeCm === $this->containerSizeCm) $this->sizeCm = null;
         }
-        $totalBudget = preg_match('/\b(?:en total|por todo|por ambas?|por los dos|por las dos|junt[oa]s?|entre los dos|(?:presupuesto|gasto|importe|costo|precio) total|total(?: de la compra| de todo)?)\b/u', $text) === 1;
+        $totalBudget = preg_match('/\b(?:en total|por todo|por ambas?|por los dos|por las dos|junt[oa]s?|entre los dos|entre las dos|(?:presupuesto|gasto|importe|costo|precio) total|total(?: de la compra| de todo)?|alcanza con)\b/u', $text) === 1;
         $perUnit = preg_match('/\b(?:por unidad|por cada (?:una?|planta|maceta|producto)|cada (?:una?|planta|maceta|producto)|precio unitario)\b/u', $text) === 1;
         $this->totalBudgetPreference = $totalBudget ? true : ($perUnit ? false : null);
         $this->totalBudget = $this->totalBudgetPreference === true;
-        $this->lowPrice = preg_match('/\b(?:barat[oa]s?|economi[ct][oa]s?|mas economi[ct][oa]s?|menor precio|precio mas bajo)\b/u', $text) === 1;
+        if (preg_match('/\b(?:con|incluye|junto con)\s+(?:la\s+)?maceta\b/u', $text) === 1) {
+            $this->totalBudgetPreference = true;
+            $this->totalBudget = true;
+        }
+        $this->lowPrice = preg_match('/\b(?:barat[oa]s?|mas barat[oa]s?|economi[ct][oa]s?|mas economi[ct][oa]s?|menor precio|precio mas bajo|la mas barata|el mas barato)\b/u', $text) === 1;
         $this->selectedOption = $this->parseSelectedOption($text);
         [$this->light, $this->noDirect, $this->conflictingLight, $this->lightMentioned] = $this->parseLight($text);
         $this->lightPreferenceCleared = preg_match('/\b(?:me da igual|no (?:me )?importa|sin preferencia (?:por|de)|sin filtro de)\s+(?:(?:la|el tipo de)\s+)?(?:luz|iluminacion)\b/u', $text) === 1;
@@ -185,14 +215,14 @@ final class ShopChatQuery
         $this->lightMentioned = $this->lightMentioned || $this->noLight;
         $this->rooms = [];
         $mentionsPlant = preg_match('/\b(plantas?|cactus|suculentas?|arbol(?:es)?)\b/u', $this->productText) === 1;
-        $roomOnly = preg_match('/^(?:(?:mejor|ahora)\s+)?(?:(?:para|en)\s+)?(?:(?:mi|el|la|un|una)\s+)?(?:cuarto|dormitorio|habitacion|recamara|sala|salon|living)(?: de estar)?$/u', $text) === 1;
+        $roomOnly = preg_match('/^(?:(?:mejor|ahora)\s+)?(?:(?:para|en)\s+)?(?:(?:mi|el|la|un|una)\s+)?(?:cuarto|dormitorio|habitacion|recamara|sala|salon|living|bano)(?: de estar)?$/u', $text) === 1;
         if ($mentionsPlant || $this->recommendation || $this->lightMentioned || $roomOnly) {
             $this->rooms = $this->parseRooms($text);
         }
         $this->lightQuestion = preg_match('/\b(?:que|cual)\s+(?:tipo de\s+)?luz(?:\s+(?:necesita|requiere|prefiere|recibe|le conviene))?\b|\b(?:luz|iluminacion)\s+(?:necesita|requiere|prefiere|recibe)\b/u', $text) === 1;
         $compact = '(?:compact[oa]s?|pequen(?:[oa]|it[oa])s?|mini)';
         $clearCompact = preg_match('/\b(?:no (?:hace falta|tiene que ser|es necesario)|no (?:me )?importa|me da igual)\s+(?:que sea\s+|si (?:es|sea)\s+)?(?:'.$compact.'|(?:el )?tamano)\b/u', $text) === 1;
-        $wantCompact = preg_match('/\b(?:poco espacio|espacios? pequenos?|ocup[ea] poco|compact[oa]s?)\b|\b(?:mas|algo|planta|opcion|sea|y|tamano)\s+'.$compact.'\b|^'.$compact.'$/u', $text) === 1;
+        $wantCompact = preg_match('/\b(?:poco espacio|espacios? pequenos?|ocup[ea] poco|compact[oa]s?|pequen(?:[oa]|it[oa])s?|mini)\b|\b(?:mas|algo|planta|opcion|sea|y|tamano)\s+'.$compact.'\b|^'.$compact.'$/u', $text) === 1;
         $this->compactSpaceMentioned = $clearCompact || $wantCompact;
         $this->compactSpace = $wantCompact && !$clearCompact;
         $unusual = '(?:exotic[oa]s?|rar[oa]s?|poco comunes?|llamativ[oa]s?)';
@@ -224,7 +254,7 @@ final class ShopChatQuery
             || $this->easyMentioned || $this->lightMentioned || $this->compactSpaceMentioned || $this->lowPrice || $this->skipPreferences
             || $this->temperatureMentioned || $this->petSafety || $this->childSafety || $this->standaloneNumber !== null
             || $this->moreOptions || $this->rooms !== [] || $this->unusualAppearance !== null
-            || $this->botanicalOriginRegion !== null || $this->romanticGift;
+            || $this->botanicalOriginRegion !== null || $this->romanticGift || $this->floweringMentioned || $this->distinctItems || $this->outdoorMentioned;
     }
 
     public function mergeRecommendationPreferencesFrom(self $other): void
@@ -254,7 +284,7 @@ final class ShopChatQuery
         }
         $this->catalogCategory = $other->catalogCategory ?? $this->catalogCategory;
         $this->quantity = $other->quantity ?? $this->quantity;
-        if ($other->sizeCm !== null || $other->maxSizeCm !== null) {
+        if ($other->sizeCm !== null || $other->minSizeCm !== null || $other->maxSizeCm !== null) {
             $this->sizeCm = $other->sizeCm;
             $this->minSizeCm = $other->minSizeCm;
             $this->maxSizeCm = $other->maxSizeCm;
@@ -271,6 +301,9 @@ final class ShopChatQuery
         $this->temperatureMentioned = $this->temperatureMentioned || $other->temperatureMentioned;
         $this->unsupportedClimateRequirement = $this->unsupportedClimateRequirement || $other->unsupportedClimateRequirement;
         $this->botanicalOriginRegion = $other->botanicalOriginRegion ?? $this->botanicalOriginRegion;
+        $this->floweringMentioned = $this->floweringMentioned || $other->floweringMentioned;
+        $this->distinctItems = $this->distinctItems || $other->distinctItems;
+        $this->outdoorMentioned = $this->outdoorMentioned || $other->outdoorMentioned;
         $this->petSafety = $this->petSafety || $other->petSafety;
         $this->childSafety = $this->childSafety || $other->childSafety;
         if ($other->humidityMentioned) {
@@ -312,7 +345,7 @@ final class ShopChatQuery
         }
         $this->catalogCategory ??= $context->catalogCategory;
         $this->quantity ??= $context->quantity;
-        if ($this->sizeCm === null && $this->maxSizeCm === null) {
+        if ($this->sizeCm === null && $this->minSizeCm === null && $this->maxSizeCm === null) {
             $this->sizeCm = $context->sizeCm;
             $this->minSizeCm = $context->minSizeCm;
             $this->maxSizeCm = $context->maxSizeCm;
@@ -329,6 +362,9 @@ final class ShopChatQuery
         $this->temperatureMentioned = $this->temperatureMentioned || $context->temperatureMentioned;
         $this->unsupportedClimateRequirement = $this->unsupportedClimateRequirement || $context->unsupportedClimateRequirement;
         $this->botanicalOriginRegion ??= $context->botanicalOriginRegion;
+        $this->floweringMentioned = $this->floweringMentioned || $context->floweringMentioned;
+        $this->distinctItems = $this->distinctItems || $context->distinctItems;
+        $this->outdoorMentioned = $this->outdoorMentioned || $context->outdoorMentioned;
         $this->petSafety = $this->petSafety || $context->petSafety;
         $this->childSafety = $this->childSafety || $context->childSafety;
         if (!$this->humidityMentioned && $context->humidityMentioned) {
@@ -347,7 +383,7 @@ final class ShopChatQuery
     public function followsKnownProduct(): bool
     {
         return preg_match(
-            '/^(?:y\s+)?(?:(?:cuant[oa]s?\s+)?(?:cuesta|cuestan|costaria|costarian|vale|valen|queda|quedan|hay|tienen|tienes)|cuant[oa]s?\s+me\s+(?:cuesta|cuestan|costaria|costarian)|cuant[oa]s?|(?:como\s+)?(?:la cuido|lo cuido|cuidarla|cuidarlo|la riego|lo riego|regarla|regarlo)|(?:su |el )?(?:precio|stock|disponibilidad)|(?:tendencia|demanda|ventas)|como (?:llegaron|calcularon) a ese numero)(?:\s+(?:de esa(?: planta)?|de ese(?: producto)?|de ella|de el|disponibles?|en stock|en existencia|en total|ahora|por favor|de stock|de luz|de demanda|por unidad|[0-9]+|unidades?|estimada|mensual|en usd))*$/u',
+            '/^(?:y\s+)?(?:(?:cuant[oa]s?\s+)?(?:cuesta|cuestan|costaria|costarian|vale|valen|queda|quedan|hay|tienen|tienes)|cuant[oa]s?\s+me\s+(?:cuesta|cuestan|costaria|costarian)|cuant[oa]s?|(?:como\s+)?(?:la cuido|lo cuido|cuidarla|cuidarlo|la riego|lo riego|regarla|regarlo)|(?:su |el )?(?:precio|stock|disponibilidad)|(?:tendencia|demanda|ventas)|como (?:llegaron|calcularon) a ese numero|(?:se hace grande|crece mucho|que tan grande|hasta cuanto crece|cuanto crece|cuanto mide|que tamano alcanza|es grande)|(?:tolera|soporta|aguanta|puedo dejarla|puedo ponerla).*(?:aire acondicionado|corrientes? de aire|salida del aire|calefaccion))(?:\s+(?:de esa(?: planta)?|de ese(?: producto)?|de ella|de el|disponibles?|en stock|en existencia|en total|ahora|por favor|de stock|de luz|de demanda|por unidad|[0-9]+|unidades?|estimada|mensual|en usd|junto al aire acondicionado))*$/u',
             $this->text
         ) === 1;
     }
@@ -358,7 +394,23 @@ final class ShopChatQuery
             'name'=>'nombre (?:cientifico|comun|botanico|real|mas apropiado)|(?:cual|que) (?:seria|es) (?:el|su) nombre|como (?:se llama|la llaman|le dicen|le pongo|la puedo llamar)|que nombre (?:le (?:pongo|pondrias)|ponerle)|(?:apodo|bautizarla)',
             'overview'=>'^(?:(?:y|oye) )?(?:que es|que planta es|que tipo de planta es|que clase de planta es|(?:cuentame|dime|hablame) (?:(?:mas |algo )?(?:sobre|de)|mas$)|informacion (?:sobre|de)|describe(?:me|la|lo)?|como es)\b|\b(?:caracteristicas|para que sirve|se usa para|como se usa|como (?:la|lo) uso|es (?:de|para) interior)\b',
             'substrate'=>'(?:que|cual|tipo de) (?:tierra|sustrato|mezcla)|(?:tierra|sustrato) (?:necesita|recomiendas|uso|utilizo|lleva|para)|trasplant\w*',
-            'specifications'=>'material(?:es)?|de que (?:esta )?hech[oa]|capacidad|cuant[oa]s? litros?|diametro|dimensiones|cuanto (?:mide|cabe)|medidas',
+            'specifications'=>'material(?:es)?|de que (?:esta )?hech[oa]|capacidad|cuant[oa]s? litros?|diametro|dimensiones|cuanto (?:mide|cabe)|medidas|agujeros?|drenaje|plato|peso|resistente|irrompible|incluye|incluida|viene con|largo (?:del )?pico',
+            'growth'=>'hasta cuanto crece|cuanto crece|crecimiento|altura|tamano adulto|cuanto mide|cuanto puede medir|que tan grande|se hace grande|crece mucho|que tamano alcanza|porte adulto|cuanto llega a medir|mas de \d{1,3} (?:cm|centimetros)|mayor de \d{1,3} (?:cm|centimetros)',
+            'origin'=>'de donde (?:es|viene)|procedencia|origen|nativ[oa]s?|originari[oa]s?',
+            'humidity'=>'humedad|ambiente humedo|ambiente seco',
+            'temperature'=>'temperatura|grados|calor|frio|calefaccion',
+            'airflow'=>'aire acondicionado|corrientes? de aire|salida del aire|ventilador|corriente directa',
+            'air_quality'=>'purifica(?:r)? el aire|limpia(?:r)? el aire|calidad del aire|aire mas limpio|elimina(?:r)? toxinas',
+            'pet_safety'=>'mascotas?|perros?|gatos?|toxica|toxicidad|venenosa|segura para (?:las? )?(?:mascotas?|perros?|gatos?)',
+            'child_safety'=>'bebes?|ninos?|infantes?|children|child|toddlers?',
+            'flowering'=>'flor(?:es|ecer|e)?|florec\w*|floracion',
+            'propagation'=>'reproduc(?:ir|e|en|cion)|esquejes?|propagacion|hijuelos?',
+            'fertilizer'=>'abono|fertilizante|fertilizar',
+            'symptoms'=>'hojas? (?:amarill\\w*|caen|cayendose|se caen|marchit\\w*|con manchas|enroll\\w*)|se estan cayendo|se cae|bichos?|bichit\\w*|plagas?|cochinilla|mosquita|moho|hongo|manchas?|se estira|roseta (?:se )?estira|regando demasiado|exceso de agua|pudricion',
+            'cleaning'=>'limpi\\w*|polvo de las hojas|paño humedo',
+            'handling'=>'transportar|mover (?:la|lo)|llevar (?:la|lo) (?:planta|maceta)|embalar',
+            'restock'=>'reponen|reposicion|cuando vuelve|cuando llega (?:mas|stock)|avisen?me cuando',
+            'outdoor'=>'exterior|patio|jardin|terraza|balcon|aire libre|afuera',
         ];
         $topics = [];
         foreach ($patterns as $topic => $pattern) {
@@ -414,7 +466,7 @@ final class ShopChatQuery
 
     private function parseRooms(string $text): array
     {
-        $roomNames = '\b(cuarto|dormitorio|habitacion|recamara|sala|salon|living)\b(?!\s+(?:producto|opcion|alternativa|articulo|puesto)\b)';
+        $roomNames = '\b(cuarto|dormitorio|habitacion|recamara|sala|salon|living|bano)\b(?!\s+(?:producto|opcion|alternativa|articulo|puesto)\b)';
         $rooms = [];
         $parts = preg_split('/\s+(?:y|mientras que)\s+(?=.{0,55}'.$roomNames.')/u', $text) ?: [$text];
         foreach ($parts as $part) {
@@ -428,7 +480,8 @@ final class ShopChatQuery
     {
         $rooms = [];
         foreach ($matches as $index => [$name, $offset]) {
-            $room = in_array($name, ['sala', 'salon', 'living'], true) ? 'sala' : 'cuarto';
+            $room = in_array($name, ['sala', 'salon', 'living'], true) ? 'sala'
+                : ($name === 'bano' ? 'bano' : 'cuarto');
             $end = $matches[$index + 1][1] ?? strlen($text);
             $scope = count($matches) === 1 ? $text : substr($text, $offset, $end - $offset);
             [$light, $noDirect, $conflict, $mentioned] = $this->parseLight($scope);
@@ -477,7 +530,14 @@ final class ShopChatQuery
         $modifiers = '(?:(?:una|un|ninguna|la|el|que|le|de|del|a|acceso|para|con|reciba|tenga|necesite|requiera|aguante|soporte|plantas?|espacio|cuarto|habitacion)\s+){0,8}';
         $negativeLead = '\b'.$negativePrefix.'\s+'.$modifiers;
         $noDirectPattern = '/(?:'.$negativeLead.self::DIRECT_LIGHT.'\b|\b'.self::DIRECT_LIGHT.'\s+no\b)/u';
-        $noDirect = preg_match($noDirectPattern, $text) === 1;
+        $partDaylight = preg_match('/\b(?:sol|luz solar)\s+de\s+(?:la\s+)?manana\b/u', $text) === 1
+            || preg_match('/\bsol\s+durante\s+la\s+manana\b/u', $text) === 1;
+        $changingDaylight = $partDaylight && preg_match('/\b(?:sombra|sombread[oa])\s+(?:por|durante)\s+la\s+tarde\b/u', $text) === 1;
+        if ($changingDaylight) {
+            $text = preg_replace('/\b(?:sol|luz solar)\s+de\s+(?:la\s+)?manana\b|\bsol\s+durante\s+la\s+manana\b/u', 'luz brillante', $text) ?? $text;
+            $text = preg_replace('/\bsombra\s+(?:por|durante)\s+la\s+tarde\b/u', ' ', $text) ?? $text;
+        }
+        $noDirect = $changingDaylight || preg_match($noDirectPattern, $text) === 1;
         $positive = preg_replace($noDirectPattern, ' ', $text) ?? $text;
         $negated = [];
         foreach (['low'=>self::LOW_LIGHT, 'medium'=>self::MEDIUM_LIGHT, 'bright'=>self::BRIGHT_LIGHT] as $mode => $pattern) {
@@ -552,7 +612,10 @@ final class ShopChatQuery
             }
             return ['min'=>$min, 'max'=>$max];
         }
-        $atMost = '(?:hasta|maximo(?: de)?|no (?:cueste(?:n)? )?mas de|no (?:pase|pasen) de|como mucho|presupuesto(?: total)?(?: (?:es|de))?|tope(?: total)?(?: de)?)';
+        if (preg_match('/\b'.$money.'\s+(?:como\s+)?(?:maximo|maxima|limite)\b/u', $message, $match)) {
+            return ['max'=>$this->cents($match[1])];
+        }
+        $atMost = '(?:hasta|maximo(?: de)?|no (?:cueste(?:n)? )?mas de|no (?:pase|pasen) de|como mucho|alcanza(?:ria)? con|presupuesto(?: total)?(?: (?:es|de))?|tope(?: total)?(?: de)?)';
         $less = '(?:menos de|por debajo de|menor(?:es)? (?:de|a))';
         $more = '(?:mas de|mayor(?:es)? (?:de|a)|por encima de)';
         $atLeast = '(?:por lo menos|al menos|minimo(?: de)?|a partir de)';
@@ -579,8 +642,8 @@ final class ShopChatQuery
             }
         }
         if ($bounds !== []) return ($bounds['min'] ?? 0) <= ($bounds['max'] ?? PHP_INT_MAX) ? $bounds : [];
-        if (preg_match('/\b(presupuesto|'. $atMost .'|'. $less .'|'. $more .')\b/u', $message)
-            || (preg_match('/(?:'.self::USD.'\s*'.self::AMOUNT.'|'.self::AMOUNT.'\s*'.self::USD.')/u', $message))) {
+        if (preg_match('/\bpresupuesto\b/u', $message)
+            || preg_match('/(?:'.self::USD.'\s*'.self::AMOUNT.'|'.self::AMOUNT.'\s*'.self::USD.')/u', $message)) {
             return [];
         }
         return null;
@@ -590,6 +653,21 @@ final class ShopChatQuery
     {
         $parts = explode('.', str_replace(',', '.', $amount), 2);
         return (int)$parts[0] * 100 + (int)str_pad($parts[1] ?? '', 2, '0');
+    }
+
+    private function normalizeTextualMoney(string $message): string
+    {
+        $numberWords = [
+            'cien'=>'100', 'sesenta'=>'60', 'cincuenta'=>'50', 'cuarenta'=>'40',
+            'treinta'=>'30', 'veinticinco'=>'25', 'veinte'=>'20', 'quince'=>'15', 'diez'=>'10',
+            'nueve'=>'9', 'ocho'=>'8', 'siete'=>'7', 'seis'=>'6', 'cinco'=>'5', 'cuatro'=>'4', 'tres'=>'3', 'dos'=>'2', 'uno'=>'1',
+        ];
+        $moneyCue = '(?:usd|dolares?|presupuesto|precio|cueste|cuesten|barat[oa]|menos de|por debajo de|hasta|maxim[oa]|como mucho|limite)';
+        foreach ($numberWords as $word => $number) {
+            $message = preg_replace_callback('/(\b'.$moneyCue.'\b[^.!?]{0,36})\b'.$word.'\b/u', static fn(array $match): string => $match[1].$number, $message) ?? $message;
+            $message = preg_replace('/\b'.$word.'\b([^.!?]{0,16}\b(?:usd|dolares?)\b)/u', $number.'$1', $message) ?? $message;
+        }
+        return $message;
     }
 
     private function parseQuantity(string $text): ?int

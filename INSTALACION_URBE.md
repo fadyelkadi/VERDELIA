@@ -1,29 +1,27 @@
-# Instalación en computadoras universitarias
+# Instalación en computadoras URBE
 
-Compatibilidad comprobada con **PHP 8.0.28** (la versión fotografiada en URBE) y PHP 8.2.12 para la comprobación del entorno. No hace falta reemplazar XAMPP por una versión anterior. La corrección elimina sintaxis que requería PHP 8.1 y el lanzador ahora revisa los archivos antes de inicializar la base. Evidencia y límites: `docs/COMPATIBILIDAD_PHP.md`.
+VERDELIA está preparado para la versión fotografiada en el laboratorio: **XAMPP 8.0.28-0 para Windows x64, PHP 8.0.28 y Apache 2.4**, con `pdo_mysql` habilitado.
 
-Para sustituir una copia que mostraba `unexpected identifier "int"` en `CartRepository.php`, detén sus servidores con Ctrl+C, extrae la carpeta completa del ZIP corregido y ejecuta su `INICIAR_VERDELIA.bat`. No mezcles archivos de distintas copias. El ZIP no incluye ni instala PHP/XAMPP; usa el que ya está en la PC.
+## Inicio
 
-1. Copia la carpeta completa `VERDELIA` desde el USB a una ubicación permitida fuera de `C:\xampp\htdocs` (o ejecútala directamente desde el USB si el antivirus/políticas lo permiten).
-2. Comprueba que XAMPP compatible esté instalado y abre XAMPP Control Panel.
-3. Inicia MySQL. Apache no es necesario.
-4. El lanzador busca PHP en la carpeta portable `xampp`, `VERDELIA_XAMPP_HOME`/`XAMPP_HOME`, rutas XAMPP habituales de unidades Windows y `PATH`. Para otra ubicación define `VERDELIA_XAMPP_HOME=RUTA\A\xampp` o `VERDELIA_PHP_EXE=RUTA\A\php.exe` en CMD y ejecuta `INICIAR_VERDELIA.bat` desde esa misma consola.
-5. El usuario MySQL predeterminado es `root` sin contraseña, solo si coincide con la configuración local de XAMPP. Para otra configuración define `VERDELIA_DB_HOST`, `VERDELIA_DB_PORT`, `VERDELIA_DB_USER` y `VERDELIA_DB_PASSWORD` en CMD antes de arrancar. No cambies cuentas del equipo institucional.
-6. La primera ejecución necesita permiso SQL `CREATE DATABASE`; si no está concedido, solicita al administrador de laboratorio una base vacía y permisos limitados, luego configura `VERDELIA_DB_NAME`.
-7. El lanzador crea la semilla y abre la dirección local que muestra. Busca automáticamente un puerto libre desde `8088`; puedes fijar uno con `VERDELIA_WEB_PORT`.
-8. Usa Ctrl+C para detener PHP y apaga MySQL desde XAMPP cuando termines.
+1. Copia o extrae el proyecto completo en una carpeta local. No combines archivos de dos versiones diferentes.
+2. Abre XAMPP Control Panel e inicia **MySQL**.
+3. Ejecuta `INICIAR_VERDELIA.bat`. Comprueba que informe PHP 8.0.28 y `pdo_mysql` antes de crear o actualizar la base.
+4. El lanzador ejecuta `scripts/bootstrap.php` con el PHP de XAMPP y luego levanta **Apache de XAMPP** con `public/` como raíz web, limitado a `127.0.0.1:8088`.
+5. Abre `http://localhost:8088/`. Mantén abierta la consola; `Ctrl+C` detiene Apache.
 
-El chat se abre desde la tienda. Prueba el precio o el stock de una planta, una recomendación para poca luz y la tendencia de demanda del Aloe. Con la instalación habitual de XAMPP, la regresión se calcula en PHP. La misma versión admite Python 3 si se configura su ruta antes de arrancar. [Guía del asistente](docs/CHATBOT.md)
+La configuración de Apache se genera temporalmente para el proyecto. No modifica el `httpd.conf` instalado, no publica la carpeta de código en `htdocs` y no usa el servidor web integrado de PHP. Si el proyecto está en otra ubicación, establece `VERDELIA_XAMPP_HOME` con la carpeta raíz de XAMPP antes de ejecutar el BAT.
 
-El lanzador incluido fija el servidor en `127.0.0.1`, usa `public/` como raíz web y no expone el sitio a la red. Está pensado para una demostración local en esa PC, no para que otras computadoras se conecten ni para producción. Si Apache está activo, no publiques `C:\xampp\htdocs\VERDELIA` como raíz: configura siempre `DocumentRoot` en la subcarpeta `public/`.
+## Base de datos
 
-## Si el doble clic no abre la consola
+La configuración predeterminada usa MySQL local con `root` sin contraseña, si coincide con esa instalación. Para otra cuenta, define `VERDELIA_DB_HOST`, `VERDELIA_DB_PORT`, `VERDELIA_DB_USER`, `VERDELIA_DB_PASSWORD` y, si es necesario, `VERDELIA_DB_NAME`. La carga inicial requiere permiso SQL `CREATE DATABASE`. No cambies cuentas del equipo institucional; si no tienes permisos, pide al administrador una base vacía.
 
-Extrae el ZIP completo con **Extraer todo**. En XAMPP inicia **MySQL** y abre **Shell**. Cambia a la carpeta extraída que contiene `INICIAR_VERDELIA.bat` y ejecuta estos comandos. Sustituye la ruta del ejemplo por la de tu carpeta.
+## Errores de inicio
 
-```bat
-cd /d "C:\ruta\a\VERDELIA"
-php scripts\start-local.php
-```
+- **Falta `php.exe`, `php8ts.dll`, `php8apache2_4.dll` o `php_pdo_mysql.dll`:** la copia instalada de XAMPP está incompleta; instala o repara la distribución completa XAMPP 8.0.28-0. El lanzador se detiene sin sustituirla por el PHP del sistema.
+- **PHP detectado distinto de 8.0.28:** confirma que `VERDELIA_XAMPP_HOME` apunta a la carpeta correcta.
+- **MySQL no responde:** inicia el módulo MySQL en el panel XAMPP y confirma host, puerto y credenciales.
+- **Apache no puede escuchar en 8088:** cierra la aplicación que ocupa el puerto y vuelve a iniciar el proyecto.
+- **Apache rechaza configuración:** copia el primer error de la validación; normalmente indica que la instalación XAMPP no tiene todos los módulos y DLL esperados.
 
-Abre la dirección `http://127.0.0.1:8088/` o la que indique la consola. Déjala abierta mientras usas la tienda. Si aparece un error, copia la primera línea que empieza por `ERROR`. Si la PC impide abrir XAMPP Shell o ejecutar PHP, informa del mensaje al encargado del laboratorio.
+El proyecto usa compras simuladas, no realiza cobros ni despacha productos.

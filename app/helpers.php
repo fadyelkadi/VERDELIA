@@ -17,6 +17,17 @@ function lowercase(string $text): string
     return strtr(strtolower($text), ['Á'=>'á','É'=>'é','Í'=>'í','Ó'=>'ó','Ú'=>'ú','Ü'=>'ü','Ñ'=>'ñ']);
 }
 
+function care_level_label(string|null $level): string
+{
+    $value = trim((string)$level);
+    return match (lowercase($value)) {
+        'facil' => 'Fácil',
+        'media', 'intermedia', 'intermedio' => 'Intermedio',
+        'avanzada', 'avanzado' => 'Avanzado',
+        default => $value,
+    };
+}
+
 function status_slug(string $status): string
 {
     return match ($status) {

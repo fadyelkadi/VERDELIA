@@ -18,7 +18,7 @@ El chat de la tienda funciona con el catálogo y el historial de VERDELIA. Los v
 - «No tengo presupuesto» se interpreta como que no se indicó un límite; «gratis» sí significa que el precio debe ser cero. El chat conserva y actualiza estas preferencias durante la conversación.
 - «Quiero una maceta irrompible» muestra macetas disponibles, pero aclara si el catálogo no documenta su resistencia. También corrige algunas erratas comunes, como «meceta».
 - Si alguien pregunta por cannabis, el asistente aclara que VERDELIA no lo comercializa. Cuando conoce la luz del espacio, ofrece alternativas ornamentales disponibles del catálogo.
-- Un patio o jardín sin otra indicación se trata como un espacio con luz brillante; una condición explícita, como «poca luz», tiene prioridad.
+- Un patio o jardín no determina por sí solo la cantidad de luz: el asistente conserva la condición explícita y pregunta si hace falta.
 - Si ninguna planta cumple las condiciones, el chat lo indica en vez de sugerir productos agotados o inventar compatibilidades.
 - Si preguntan por una región de origen, como la Amazonía, el chat no muestra plantas al azar: las fichas actuales no guardan procedencia geográfica, así que aclara que no puede verificarla.
 - Para consultas sobre seguridad de mascotas o cuidados que la ficha no especifica, el chat explica qué información falta.
@@ -31,7 +31,7 @@ El chat de la tienda funciona con el catálogo y el historial de VERDELIA. Los v
 
 ## Ejecutar en Windows
 
-Extrae el ZIP completo, inicia MySQL en XAMPP y ejecuta `INICIAR_VERDELIA.bat`. Si el doble clic no abre la consola, sigue los pasos de [instalación con XAMPP](../INSTALACION_URBE.md). Puedes consultar el pronóstico con el motor PHP incluido.
+Extrae el ZIP completo, inicia MySQL en XAMPP y ejecuta `INICIAR_VERDELIA.bat`. El sitio se sirve con Apache de XAMPP 8.0.28; si el doble clic no abre la consola, sigue los pasos de [instalación con XAMPP](../INSTALACION_URBE.md). Puedes consultar el pronóstico con el motor PHP incluido.
 
 Para usar el motor Python en una PC que ya tiene Python 3, abre CMD en la carpeta de VERDELIA y ejecuta:
 
