@@ -97,8 +97,8 @@ final class ShopChat
             return ['message'=>$restriction.'El catálogo no respalda plantas como cura, prevención o tratamiento de asma u otras enfermedades. Consulta a un profesional de salud; puedo ayudarte con usos ornamentales y datos del catálogo.'];
         }
         if ($query->conflictingBudget) {
-            $cap = preg_match('/\b(?:hasta|maximo(?: de)?|menos de|por debajo de|no (?:cueste(?:n)? )?mas de|tope(?: total)?(?: de)?|presupuesto(?: total)?(?: (?:es|de))?)\s+(?:usd\s*)?(\d+(?:[.,]\d{1,2})?)/u', $query->text, $amount)
-                ? ' $'.str_replace(',', '.', $amount[1]).' USD'
+            $cap = preg_match('/\b(?:hasta|maximo(?: de)?|menos de|por debajo de|no (?:cueste(?:n)? )?mas de|tope(?: total)?(?: de)?|presupuesto(?: total)?(?: (?:es|de))?)\s+(?:'.ShopChatQuery::CURRENCY_PATTERN.'\s*)?(\d+(?:[.,]\d{1,2})?)/u', $query->text, $amount)
+                ? ' Bs. REF '.str_replace(',', '.', $amount[1])
                 : '';
             return ['message'=>'Mencionaste que no tienes límite y también fijaste un máximo'.$cap.'. ¿Quieres que aplique ese máximo o que ignore el presupuesto?'];
         }
@@ -201,10 +201,10 @@ final class ShopChat
             return ['message'=>'Mencionaste ventilación buena y escasa. ¿El espacio está bien ventilado o es cerrado?'];
         }
         if ($query->invalidBudgetRange) {
-            return ['message'=>'El rango de precio parece estar invertido. Escribe primero el monto menor, por ejemplo «entre $10 y $30».'];
+            return ['message'=>'El rango de precio parece estar invertido. Escribe primero el monto menor, por ejemplo «entre Bs. REF 10 y Bs. REF 30».'];
         }
         if ($query->budget === [] && !$query->unsupportedCurrency) {
-            return ['message'=>'¿Quieres decir que no tienes un límite definido o que buscas algo gratis? Si tienes un rango, puedes escribir «entre $10 y $20».'];
+            return ['message'=>'¿Quieres decir que no tienes un límite definido o que buscas algo gratis? Si tienes un rango, puedes escribir «entre Bs. REF 10 y Bs. REF 20».'];
         }
         if (in_array($query->catalogCategory, ['arboles', 'arboles-frutales', 'bonsais', 'plantas-con-flores'], true)
             && !$query->trend && !$query->externalRetailer
@@ -297,9 +297,9 @@ final class ShopChat
         }
         if ($query->unsupportedCurrency) {
             if ($matches === []) {
-                return ['message'=>'El catálogo muestra los precios en dólares estadounidenses (USD). No tengo un tipo de cambio verificado para convertir o comparar el importe que indicaste.'];
+                return ['message'=>'El catálogo muestra los precios en bolívares de referencia (Bs. REF), con el mismo valor numérico de referencia. No tengo un tipo de cambio verificado para convertir o comparar el importe que indicaste en otra moneda.'];
             }
-            // A foreign-currency amount cannot be compared to the catalog's USD prices.
+            // An amount in a foreign currency cannot be compared without a verified conversion rate.
             $query->budget = null;
             $query->budgetMentioned = false;
         }
@@ -556,8 +556,8 @@ final class ShopChat
             }
         }
         $withinBudget = $maximum === null || $pair['total'] <= $maximum;
-        $message = 'La combinación disponible de menor precio que encontré es '.$pair['plant']['name'].' ('.$this->money((int)$pair['plant']['price_cents']).' USD) y '.$pair['pot']['name'].' ('.$this->money((int)$pair['pot']['price_cents']).' USD). Total por ambos: '.$this->money($pair['total']).' USD.';
-        if ($maximum !== null) $message .= $withinBudget ? ' Está dentro del máximo de '.$this->money((int)$maximum).' USD.' : ' No hay una combinación en stock que alcance el máximo de '.$this->money((int)$maximum).' USD.';
+        $message = 'La combinación disponible de menor precio que encontré es '.$pair['plant']['name'].' ('.$this->money((int)$pair['plant']['price_cents']).') y '.$pair['pot']['name'].' ('.$this->money((int)$pair['pot']['price_cents']).'). Total por ambos: '.$this->money($pair['total']).'.';
+        if ($maximum !== null) $message .= $withinBudget ? ' Está dentro del máximo de '.$this->money((int)$maximum).'.' : ' No hay una combinación en stock que alcance el máximo de '.$this->money((int)$maximum).'.';
         $message .= ' La ficha no confirma que el diámetro de esta maceta sea compatible con la planta elegida; verifica las medidas antes de comprar.';
         return ['message'=>$message, 'products'=>[$this->publicProduct($pair['plant']), $this->publicProduct($pair['pot'])], 'store_link'=>'/tienda'];
     }
@@ -838,10 +838,10 @@ final class ShopChat
             $units = $quantity === 1 ? '1 unidad' : $quantity.' unidades';
             $availability .= $stock >= $quantity ? ' Sí hay '.$units.' para tu consulta.' : ' No hay '.$units.' disponibles.';
             if ($quantity > 1 && $stock >= $quantity) {
-                $availability .= ' El subtotal de '.$units.' es '.$this->money((int)$product['price_cents'] * $quantity).' USD.';
+                $availability .= ' El subtotal de '.$units.' es '.$this->money((int)$product['price_cents'] * $quantity).'.';
             }
         }
-        return $this->productLabel($product).' cuesta '.$this->money((int)$product['price_cents']).' USD. '.$availability;
+        return $this->productLabel($product).' cuesta '.$this->money((int)$product['price_cents']).'. '.$availability;
     }
 
     private function productMatchesSize(array $product, int $sizeCm): bool
@@ -886,7 +886,7 @@ final class ShopChat
     private function appendCurrencyCaveat(array $reply, ShopChatQuery $query): array
     {
         if ($query->unsupportedCurrency) {
-            $reply['message'] = rtrim((string)($reply['message'] ?? '')).' El precio del catálogo está en USD; no hago conversión a otra moneda sin un tipo de cambio verificado.';
+            $reply['message'] = rtrim((string)($reply['message'] ?? '')).' El catálogo expresa los precios en bolívares de referencia (Bs. REF); no convierto importes de otra moneda sin un tipo de cambio verificado.';
         }
         return $reply;
     }
@@ -990,7 +990,7 @@ final class ShopChat
         }
         if (count($products) > 1 && ($query->totalBudgetPreference === true
             || preg_match('/\b(?:junt[oa]s?|en total|por todo|cuanto cuestan)\b/u', $query->text) === 1)) {
-            $message .= ' Total de '.array_sum($unitCounts).' artículos: '.$this->money($grandTotal).' USD.';
+            $message .= ' Total de '.array_sum($unitCounts).' artículos: '.$this->money($grandTotal).'.';
             if (!$enoughStock) $message .= ' El stock actual no alcanza para todas las cantidades indicadas.';
             elseif ($query->budget !== null) $message .= $grandTotal <= (int)($query->budget['max'] ?? PHP_INT_MAX) ? ' Sí, alcanza para cubrir esa compra con el límite indicado.' : ' No alcanza con el límite indicado.';
         }
@@ -1132,9 +1132,9 @@ final class ShopChat
                     $lines[] = $this->productSummary($product, null);
                 }
                 if ($fits !== []) {
-                    $intro .= ' La combinación sugerida suma '.$this->money($selected['total']).' USD y respeta tu presupuesto total de '.$this->money($limit).' USD.';
+                    $intro .= ' La combinación sugerida suma '.$this->money($selected['total']).' y respeta tu presupuesto total de '.$this->money($limit).'.';
                 } else {
-                    $intro .= ' No encontré una combinación dentro de tu presupuesto total de '.$this->money($limit).' USD. La combinación más económica para ambos espacios suma '.$this->money($selected['total']).' USD.';
+                    $intro .= ' No encontré una combinación dentro de tu presupuesto total de '.$this->money($limit).'. La combinación más económica para ambos espacios suma '.$this->money($selected['total']).'.';
                 }
             }
         }
@@ -1344,9 +1344,9 @@ final class ShopChat
         $names = [];
         foreach ($shown as $product) {
             $detail = $this->productLabel($product).'. La ficha indica «'.($product['light'] ?: 'luz no especificada').'».';
-            $detail .= ' Precio: '.$this->money((int)$product['price_cents']).' USD por unidad. Hay '.(int)$product['stock'].' unidades disponibles.';
+            $detail .= ' Precio: '.$this->money((int)$product['price_cents']).' por unidad. Hay '.(int)$product['stock'].' unidades disponibles.';
             if (($query->quantity ?? 0) > 1) {
-                $detail .= ' El subtotal por '.$query->quantity.' unidades es '.$this->money((int)$product['price_cents'] * $query->quantity).' USD.';
+                $detail .= ' El subtotal por '.$query->quantity.' unidades es '.$this->money((int)$product['price_cents'] * $query->quantity).'.';
             }
             if ($query->easy) $detail .= ' Cuidado fácil.';
             $names[] = $detail;
@@ -1398,15 +1398,15 @@ final class ShopChat
         }
         $total = array_sum(array_map(static fn(array $product): int => (int)$product['price_cents'], $bundle));
         $maximum = (int)($query->budget['max'] ?? PHP_INT_MAX);
-        $message = 'Para '.count($bundle).' plantas distintas, la combinación de menor precio disponible suma '.$this->money($total).' USD. ';
+        $message = 'Para '.count($bundle).' plantas distintas, la combinación de menor precio disponible suma '.$this->money($total).'. ';
         if ($total <= $maximum) {
             $message .= 'Cumple el límite total indicado; cada opción está disponible en stock.';
         } else {
-            $message .= 'No encontré una combinación que cumpla el límite total de '.$this->money($maximum).' USD. Esta es la combinación más económica disponible para que puedas comparar.';
+            $message .= 'No encontré una combinación que cumpla el límite total de '.$this->money($maximum).'. Esta es la combinación más económica disponible para que puedas comparar.';
         }
         foreach ($bundle as $product) {
             $guide = ProductGuide::forProduct($product);
-            $message .= "\n".$product['name'].' ('.$product['sku'].'): '.$this->money((int)$product['price_cents']).' USD; '.(int)$product['stock'].' en stock. Luz: '.((string)$product['light'] ?: 'no especificada').'. Nivel de cuidado: '.(care_level_label((string)($product['care_level'] ?? '')) ?: 'no especificado').'. '.(string)($guide['overview'] ?? $product['description'] ?? '');
+            $message .= "\n".$product['name'].' ('.$product['sku'].'): '.$this->money((int)$product['price_cents']).'; '.(int)$product['stock'].' en stock. Luz: '.((string)$product['light'] ?: 'no especificada').'. Nivel de cuidado: '.(care_level_label((string)($product['care_level'] ?? '')) ?: 'no especificado').'. '.(string)($guide['overview'] ?? $product['description'] ?? '');
         }
         return ['message'=>$message, 'products'=>array_map([$this, 'publicProduct'], $bundle)];
     }
@@ -1527,7 +1527,7 @@ final class ShopChat
             if ($query->carePreference !== null) $basis[] = 'cuidado';
             if ($query->budget !== null) $basis[] = 'precio';
             $basisText = $basis === [] ? 'los criterios indicados' : implode(' y ', $basis);
-            $message .= ' La alternativa más cercana por '.$basisText.' es '.$this->productLabel($alternative).', '.$priceLabel.' USD'.($query->budget !== null ? ' y queda fuera del rango' : '').'.';
+            $message .= ' La alternativa más cercana por '.$basisText.' es '.$this->productLabel($alternative).', '.$priceLabel.($query->budget !== null ? ' y queda fuera del rango' : '').'.';
             $productsForLinks[] = $this->publicProduct($alternative);
         }
         $message .= $this->environmentCaveat($query);
@@ -1625,7 +1625,7 @@ final class ShopChat
             'image'=>'/assets/images/products/'.$image,
             'image_alt'=>$image === 'product-placeholder.svg' ? '' : (string)($product['image_alt'] ?? ''),
             'description'=>trim((string)($product['description'] ?? '')),
-            'price'=>$this->money((int)$product['price_cents']).' USD',
+            'price'=>$this->money((int)$product['price_cents']),
             'stock'=>max(0, (int)$product['stock']),
             'light'=>(string)($product['light'] ?? ''),
             'care'=>care_level_label((string)($product['care_level'] ?? '')),
@@ -1635,14 +1635,14 @@ final class ShopChat
             $details['size'] = $size[1].' cm';
         }
         if (($quantity ?? 0) > 1 && (int)$product['stock'] >= $quantity) {
-            $details['subtotal'] = $this->money((int)$product['price_cents'] * $quantity).' USD por '.$quantity.' unidades';
+            $details['subtotal'] = $this->money((int)$product['price_cents'] * $quantity).' por '.$quantity.' unidades';
         }
         return $details;
     }
 
     private function money(int $cents): string
     {
-        return '$'.number_format($cents/100,2,'.',',');
+        return 'Bs. REF '.number_format($cents/100,2,'.',',');
     }
 
     private function respond(int $status, array $payload): void

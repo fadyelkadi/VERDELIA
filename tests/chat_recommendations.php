@@ -73,7 +73,7 @@ $second = new ShopChatQuery($lowLightEasy);
 $inheritHistory->invoke($chat, $second, [$humidRequest], $products);
 $secondReply = $answer->invoke($chat, $second, $products, null);
 $assert(array_column($secondReply['products'] ?? [], 'url') === ['/producto/sansevieria']
-    && str_contains($secondReply['message'], '$27.50') && str_contains($secondReply['message'], '21 unidades disponibles')
+    && str_contains($secondReply['message'], 'Bs. REF 27.50') && str_contains($secondReply['message'], '21 unidades disponibles')
     && str_contains($secondReply['message'], 'no registran tolerancia a humedad ni ventilación'),
     'interpreta ausencia de presupuesto como sin límite y recomienda con precio y stock', $secondReply);
 
@@ -81,7 +81,7 @@ $budgetAlone = new ShopChatQuery('no tengo presupuesto');
 $inheritHistory->invoke($chat, $budgetAlone, ['Recomiéndame una planta para poca luz hasta $20'], $products);
 $budgetAloneReply = $answer->invoke($chat, $budgetAlone, $products, null);
 $assert(array_column($budgetAloneReply['products'] ?? [], 'url') === ['/producto/sansevieria']
-    && str_contains($budgetAloneReply['message'], '$27.50')
+    && str_contains($budgetAloneReply['message'], 'Bs. REF 27.50')
     && str_contains($budgetAloneReply['message'], 'Entendido: tomo que no tienes un límite de gasto'),
     'una respuesta aislada de presupuesto actualiza la recomendación previa y quita el límite anterior', $budgetAloneReply);
 
@@ -89,7 +89,7 @@ $third = new ShopChatQuery('entre 10 y 20 dólares');
 $inheritHistory->invoke($chat, $third, [$humidRequest, $lowLightEasy], $products);
 $thirdReply = $answer->invoke($chat, $third, $products, null);
 $paths = array_column($thirdReply['products'] ?? [], 'url');
-$assert($paths === ['/producto/sansevieria'] && str_contains($thirdReply['message'], '$27.50')
+$assert($paths === ['/producto/sansevieria'] && str_contains($thirdReply['message'], 'Bs. REF 27.50')
     && str_contains($thirdReply['message'], 'fuera del rango')
     && str_contains($thirdReply['message'], 'no registran tolerancia a humedad ni ventilación')
     && !in_array('/producto/aloe-vera-compacta', $paths, true)
@@ -105,7 +105,7 @@ $patio = new ShopChatQuery('Quiero una planta para el patio, hay buena ilumoinac
 $patioReply = $answer->invoke($chat, $patio, $products, null);
 $assert(($patio->light ?? null) === 'bright'
     && array_column($patioReply['products'] ?? [], 'url') === ['/producto/suculenta-echeveria', '/producto/aloe-vera-compacta']
-    && str_contains($patioReply['message'], 'Precio: $12.90 USD')
+    && str_contains($patioReply['message'], 'Precio: Bs. REF 12.90')
     && str_contains($patioReply['message'], '27 unidades disponibles'),
     'usa patio y buena iluminación para recomendar plantas en stock con precio', $patioReply);
 $coveredPatio = new ShopChatQuery('Quiero una planta para el patio, pero recibe poca luz');
@@ -118,7 +118,7 @@ $assert($coveredPatioUnknown->light === null && !$coveredPatioUnknown->conflicti
 $maceta = new ShopChatQuery('quiero una meceta irrompible');
 $macetaReply = $answer->invoke($chat, $maceta, $products, null);
 $assert(array_column($macetaReply['products'] ?? [], 'url') === ['/producto/maceta-arena-14', '/producto/maceta-terracota-18']
-    && str_contains($macetaReply['message'], '$16.00 USD') && str_contains($macetaReply['message'], '40 unidades disponibles')
+    && str_contains($macetaReply['message'], 'Bs. REF 16.00') && str_contains($macetaReply['message'], '40 unidades disponibles')
     && str_contains($macetaReply['message'], 'no puedo asegurar que alguna sea irrompible'),
     'entiende error de escritura, devuelve macetas en stock y no inventa resistencia', $macetaReply);
 $cheapPlanter = new ShopChatQuery('Quiero una maceta barata');
@@ -140,7 +140,7 @@ $assert(str_contains($cheapUnknownReply['message'], '¿Buscas una planta, una ma
 $twoPlanters = new ShopChatQuery('Quiero dos macetas de 14 cm por menos de $35 en total');
 $twoPlantersReply = $answer->invoke($chat, $twoPlanters, $products, null);
 $assert(array_column($twoPlantersReply['products'] ?? [], 'url') === ['/producto/maceta-arena-14']
-    && str_contains($twoPlantersReply['message'], 'subtotal de 2 unidades es $32.00 USD'),
+    && str_contains($twoPlantersReply['message'], 'subtotal de 2 unidades es Bs. REF 32.00'),
     'considera tamaño, cantidad y subtotal al aplicar un presupuesto total', $twoPlantersReply);
 $twoPlantersBudgetPhrase = new ShopChatQuery('Quiero dos macetas de 14 cm con presupuesto total de $35');
 $twoPlantersBudgetPhraseReply = $answer->invoke($chat, $twoPlantersBudgetPhrase, $products, null);
@@ -155,12 +155,12 @@ $assert(($overBudgetPlantersReply['products'] ?? []) === []
 $selectedOption = new ShopChatQuery('Me quedo con la segunda');
 $selectedReply = $answer->invoke($chat, $selectedOption, $products, null, ['maceta-arena-14', 'maceta-terracota-18']);
 $assert(array_column($selectedReply['products'] ?? [], 'url') === ['/producto/maceta-terracota-18']
-    && str_contains($selectedReply['message'], '$19.90'),
+    && str_contains($selectedReply['message'], 'Bs. REF 19.90'),
     'resuelve la selección ordinal con las opciones mostradas', $selectedReply);
 $shippingQuestion = new ShopChatQuery('¿Cuánto cuesta la Monstera y hacen envíos?');
 $monsteraProduct = ['id'=>12,'sku'=>'PLA-006','slug'=>'monstera-deliciosa','name'=>'Monstera Deliciosa','scientific_name'=>null,'price_cents'=>4200,'stock'=>14,'light'=>'Indirecta brillante','care_level'=>'Moderado','category'=>'interior','category_name'=>'Plantas de interior','description'=>''];
 $shippingReply = $answer->invoke($chat, $shippingQuestion, [$monsteraProduct], null);
-$assert(str_contains($shippingReply['message'], '$42.00') && str_contains($shippingReply['message'], '14 unidades disponibles')
+$assert(str_contains($shippingReply['message'], 'Bs. REF 42.00') && str_contains($shippingReply['message'], '14 unidades disponibles')
     && str_contains($shippingReply['message'], 'no generan envíos ni entregas'),
     'responde precio y stock y aclara que el pedido simulado no se envía', $shippingReply);
 $easyComparison = new ShopChatQuery('Compara cuál es más fácil de cuidar entre Aloe Vera Compacta y Monstera');
@@ -204,7 +204,7 @@ $assert(($restrictedDarkReply['products'] ?? []) === []
 $priceFollowUp = new ShopChatQuery('¿Cuánto me copstaria?');
 $assert($priceFollowUp->followsKnownProduct(), 'reconoce la pregunta de precio con error de escritura');
 $priceReply = $answer->invoke($chat, $priceFollowUp, $products, 'sansevieria');
-$assert(str_contains($priceReply['message'], '$27.50') && str_contains($priceReply['message'], '21 unidades disponibles'),
+$assert(str_contains($priceReply['message'], 'Bs. REF 27.50') && str_contains($priceReply['message'], '21 unidades disponibles'),
     'usa el producto de contexto al preguntar cuánto costaría', $priceReply);
 
 $darkRequest = 'Recomiéndame una planta fácil para un cuarto sin ventanas';
@@ -217,16 +217,15 @@ $assert(($darkReply['products'] ?? []) === [] && str_contains($darkReply['messag
 $secondRoundProducts = array_merge($products, [$monsteraProduct]);
 $foreignCurrency = new ShopChatQuery('¿Cuánto cuesta la Monstera en bolívares?');
 $foreignCurrencyReply = $answer->invoke($chat, $foreignCurrency, $secondRoundProducts, null);
-$assert(str_contains($foreignCurrencyReply['message'], '$42.00 USD')
-    && str_contains($foreignCurrencyReply['message'], 'no hago conversión a otra moneda')
-    && !str_contains($foreignCurrencyReply['message'], 'Indícame el importe en USD'),
-    'da el precio conocido del producto y aclara que no convierte moneda', $foreignCurrencyReply);
+$assert(str_contains($foreignCurrencyReply['message'], 'Bs. REF 42.00')
+    && !str_contains($foreignCurrencyReply['message'], 'no hago conversión a otra moneda'),
+    'responde en bolívares de referencia sin convertir por tasa cambiaria', $foreignCurrencyReply);
 
 $wateringQuestion = new ShopChatQuery('¿Cada cuánto tengo que regar la Monstera?');
 $wateringReply = $answer->invoke($chat, $wateringQuestion, $secondRoundProducts, null);
 $assert(str_contains($wateringReply['message'], 'los primeros centímetros del sustrato estén secos')
     && !str_contains($wateringReply['message'], 'Indirecta brillante')
-    && !str_contains($wateringReply['message'], '$42.00'),
+    && !str_contains($wateringReply['message'], 'Bs. REF 42.00'),
     'explica el criterio de riego sin incluir datos ajenos a la pregunta', $wateringReply);
 $humidityClaim = new ShopChatQuery('¿Una planta puede remove humidity and mold?');
 $humidityClaimReply = $answer->invoke($chat, $humidityClaim, $secondRoundProducts, null);
@@ -265,7 +264,7 @@ $assert(str_contains($oversubscribedReply['message'], 'No hay 20 unidades dispon
 $lightQuestion = new ShopChatQuery('Dime precio, stock y qué luz necesita Aloe Vera Compacta');
 $lightQuestionReply = $answer->invoke($chat, $lightQuestion, $products, null);
 $assert(str_contains($lightQuestionReply['message'], 'Indirecta brillante')
-    && str_contains($lightQuestionReply['message'], '$14.90 USD')
+    && str_contains($lightQuestionReply['message'], 'Bs. REF 14.90')
     && str_contains($lightQuestionReply['message'], '24 unidades disponibles'),
     'responde juntos precio, existencias y luz requerida', $lightQuestionReply);
 
@@ -284,7 +283,7 @@ $assert(($compactReply['products'] ?? []) !== []
 $cactusRequest = new ShopChatQuery('Quiero un cactus para regalar');
 $cactusReply = $answer->invoke($chat, $cactusRequest, $products, null);
 $assert(array_column($cactusReply['products'] ?? [], 'url') === ['/producto/cactus-mini-desierto']
-    && str_contains($cactusReply['message'], '$11.50 USD')
+    && str_contains($cactusReply['message'], 'Bs. REF 11.50')
     && str_contains($cactusReply['message'], '35 unidades disponibles'),
     'responde una categoría botánica específica sin ampliar el resultado a todas las plantas', $cactusReply);
 
@@ -317,7 +316,7 @@ $assert(str_contains($englishVariantReply['message'], 'poca luz')
 // A second, distinct round focuses on context shifts and unsupported store/product promises.
 $parentQuestion = new ShopChatQuery('¿La Monstera es segura para mi bebé?');
 $parentReply = $answer->invoke($chat, $parentQuestion, $adversarialCatalog, null);
-$assert(!str_contains($parentReply['message'], '$42.00') && str_contains($parentReply['message'], 'no confirma si esta especie es segura para bebés o niños'),
+$assert(!str_contains($parentReply['message'], 'Bs. REF 42.00') && str_contains($parentReply['message'], 'no confirma si esta especie es segura para bebés o niños'),
     'persona nueva: madre que pregunta por seguridad infantil', $parentReply);
 $childEmergency = new ShopChatQuery('Mi niño mordió una hoja de Monstera, dime que espere.');
 $childEmergencyReply = $answer->invoke($chat, $childEmergency, $adversarialCatalog, null);
@@ -333,7 +332,7 @@ $assert(str_contains($pickupReply['message'], '14 unidades disponibles') && str_
     'persona nueva: cliente que supone que el stock permite retirar hoy', $pickupReply);
 $conflictedBudget = new ShopChatQuery('No tengo presupuesto, pero máximo $20 por planta.');
 $conflictedBudgetReply = $answer->invoke($chat, $conflictedBudget, $adversarialCatalog, null);
-$assert(str_contains($conflictedBudgetReply['message'], 'Mencionaste que no tienes límite') && str_contains($conflictedBudgetReply['message'], '$20'),
+$assert(str_contains($conflictedBudgetReply['message'], 'Mencionaste que no tienes límite') && str_contains($conflictedBudgetReply['message'], 'Bs. REF 20'),
     'persona nueva: cliente que niega y fija presupuesto en el mismo mensaje', $conflictedBudgetReply);
 $initialLightText = 'Recomiéndame una planta para poca luz';
 $changeLight = new ShopChatQuery('Olvida eso, en realidad la quiero para sol directo.');
@@ -358,15 +357,15 @@ $assert(str_contains($largeQuantityReply['message'], 'No hay 50 unidades disponi
     'persona nueva: cliente que solicita más unidades que el stock', $largeQuantityReply);
 $mixedDelivery = new ShopChatQuery('¿Cuánto cuesta la Monstera con envío a Colombia en bolívares?');
 $mixedDeliveryReply = $answer->invoke($chat, $mixedDelivery, $adversarialCatalog, null);
-$assert(str_contains($mixedDeliveryReply['message'], '$42.00 USD')
-    && str_contains($mixedDeliveryReply['message'], 'no hago conversión a otra moneda')
+$assert(str_contains($mixedDeliveryReply['message'], 'Bs. REF 42.00')
+    && !str_contains($mixedDeliveryReply['message'], 'no hago conversión a otra moneda')
     && str_contains($mixedDeliveryReply['message'], 'no generan envíos ni entregas'),
-    'persona nueva: cliente que combina envío internacional y conversión de moneda', $mixedDeliveryReply);
+    'persona nueva: responde el precio en Bs. REF y aclara que no hay envío internacional', $mixedDeliveryReply);
 
 $thirdRound = [
     ['comprador que negocia el subtotal', 'Hasta $35 en total', ['Busco dos macetas de 14 cm'], [], null,
         static fn(array $r): bool => array_column($r['products'] ?? [], 'url') === ['/producto/maceta-arena-14']
-            && str_contains($r['message'], '$32.00')],
+            && str_contains($r['message'], 'Bs. REF 32.00')],
     ['cliente que elige un número inexistente', 'Elijo la opción 8', [], ['maceta-arena-14', 'maceta-terracota-18'], null,
         static fn(array $r): bool => ($r['products'] ?? []) === [] && str_contains($r['message'], 'Solo hay 2 opciones')
             && ($r['keep_product_options'] ?? false) === true],
@@ -408,7 +407,7 @@ $plainBudget = new ShopChatQuery('Hasta 35 en total');
 $inheritHistory->invoke($chat, $plainBudget, ['Quiero dos macetas de 14 cm'], $adversarialCatalog);
 $plainBudgetReply = $answer->invoke($chat, $plainBudget, $adversarialCatalog, null);
 $assert(array_column($plainBudgetReply['products'] ?? [], 'url') === ['/producto/maceta-arena-14']
-    && str_contains($plainBudgetReply['message'], '$32.00'), 'mantiene la búsqueda al indicar un importe sin repetir la moneda', $plainBudgetReply);
+    && str_contains($plainBudgetReply['message'], 'Bs. REF 32.00'), 'mantiene la búsqueda al indicar un importe sin repetir la moneda', $plainBudgetReply);
 
 $quantityRevision = new ShopChatQuery('En realidad necesito tres');
 $inheritHistory->invoke($chat, $quantityRevision, ['Quiero dos macetas de 14 cm hasta $35 en total'], $adversarialCatalog);
@@ -556,7 +555,7 @@ $refinementChecks = [
             && str_contains($r['intro'] ?? '', 'maceta de 18 cm')],
     ['¿Y el precio de la segunda?', [], ['maceta-arena-14', 'maceta-terracota-18'],
         static fn(array $r): bool => array_column($r['products'] ?? [], 'url') === ['/producto/maceta-terracota-18']
-            && str_contains($r['message'], '$19.90')],
+            && str_contains($r['message'], 'Bs. REF 19.90')],
 ];
 $refinementFailures = [];
 foreach ($refinementChecks as [$message, $history, $options, $accept]) {
@@ -640,9 +639,9 @@ $roomBudget = new ShopChatQuery('Quiero dos plantas, una para mi cuarto y otra p
 $roomBudgetReply = $answer->invoke($chat, $roomBudget, $compactCatalog, null);
 $roomBudgetIntro = strtolower((string)($roomBudgetReply['intro'] ?? ''));
 $assert(count($roomBudgetReply['products'] ?? []) === 2
-    && (str_contains($roomBudgetIntro, 'combinación sugerida suma $')
+    && (str_contains($roomBudgetIntro, 'combinación sugerida suma bs. ref')
         || str_contains($roomBudgetIntro, 'no encontré una combinación dentro de tu presupuesto total'))
-    && str_contains($roomBudgetReply['intro'] ?? '', 'USD'),
+    && str_contains($roomBudgetReply['intro'] ?? '', 'Bs. REF'),
     'elige dos opciones de cuarto y sala y comprueba su precio combinado antes de recomendarlas', $roomBudgetReply);
 $mixedCountRequest = new ShopChatQuery('Quiero 2 macetas y 40 Aloe Vera');
 $mixedCountReply = $answer->invoke($chat, $mixedCountRequest, $compactCatalog, null);
@@ -781,7 +780,7 @@ $personaCases = [
     ['cliente que quiere flores, no solo hojas', 'Quiero una planta con flores', [], [],
         static fn(array $r): bool => ($r['products'] ?? []) === [] && str_contains($r['message'], 'no hay plantas con flores')],
     ['compradora que hace dos preguntas sobre una maceta', '¿Cuánto cuesta la Maceta Arena 14 cm y tiene drenaje?', [], [],
-        static fn(array $r): bool => str_contains($r['message'], '$16.00') && str_contains($r['message'], 'no confirma el drenaje')],
+        static fn(array $r): bool => str_contains($r['message'], 'Bs. REF 16.00') && str_contains($r['message'], 'no confirma el drenaje')],
     ['persona que hace una lista de dos insumos', '¿Venden perlita o semillas?', [], [],
         static fn(array $r): bool => str_contains($r['message'], 'perlita')
             && array_column($r['products'] ?? [], 'url') === ['/producto/semillas-de-albahaca']],
@@ -792,13 +791,13 @@ $personaCases = [
             && !in_array('/producto/monstera-deliciosa', array_column($r['products'] ?? [], 'url'), true)],
     ['persona que renegocia el tope de toda la compra', 'Hasta $35', ['Quiero dos macetas hasta $30 en total'], [],
         static fn(array $r): bool => array_column($r['products'] ?? [], 'url') === ['/producto/maceta-arena-14']
-            && str_contains($r['message'], '$32.00')],
+            && str_contains($r['message'], 'Bs. REF 32.00')],
     ['comprador que mide en un intervalo', 'Busco dos macetas entre 14 y 18 cm hasta $45 en total', [], [],
         static fn(array $r): bool => array_column($r['products'] ?? [], 'url') === ['/producto/maceta-arena-14', '/producto/maceta-terracota-18']
-            && str_contains($r['message'], '$39.80')],
+            && str_contains($r['message'], 'Bs. REF 39.80')],
     ['cliente que señala la última tarjeta', '¿Y el precio de la última?', [], ['maceta-arena-14', 'maceta-terracota-18'],
         static fn(array $r): bool => array_column($r['products'] ?? [], 'url') === ['/producto/maceta-terracota-18']
-            && str_contains($r['message'], '$19.90')],
+            && str_contains($r['message'], 'Bs. REF 19.90')],
 ];
 $personaFailures = [];
 foreach ($personaCases as [$person, $message, $history, $options, $expect]) {
@@ -935,6 +934,12 @@ $assert(str_contains($monsteraSizeReply['message'], 'no registra las medidas act
 $fifteenLimit = new ShopChatQuery('¿Qué opciones tengo con 15 USD como máximo?');
 $assert(($fifteenLimit->budget['max'] ?? null) === 1500,
     'interpreta un máximo escrito después del importe');
+$referenceBudget = new ShopChatQuery('Quiero una planta hasta Bs. REF 15');
+$referenceBudgetPostfixed = new ShopChatQuery('Quiero una planta hasta 15 bolívares de referencia');
+$assert(($referenceBudget->budget['max'] ?? null) === 1500 && !$referenceBudget->unsupportedCurrency
+    && ($referenceBudgetPostfixed->budget['max'] ?? null) === 1500 && !$referenceBudgetPostfixed->unsupportedCurrency
+    && money(1490) === 'Bs. REF 14.90',
+    'interpreta precios de referencia de bolívares conservando la cifra y formato del catálogo');
 $millimeterPot = new ShopChatQuery('Quiero una maceta de 140 mm');
 $assert($millimeterPot->sizeCm === 14 && $millimeterPot->catalogCategory === 'macetas',
     'convierte milímetros a centímetros al buscar el diámetro de una maceta');
@@ -962,7 +967,7 @@ $assert(isset($twoRooms->rooms['sala'], $twoRooms->rooms['bano'])
 $bundle = new ShopChatQuery('Quiero maceta y planta por menos de $30 total');
 $bundleReply = $answer->invoke($chat, $bundle, $products, null);
 $assert(count($bundleReply['products'] ?? []) === 2
-    && str_contains($bundleReply['message'], 'Total por ambos: $27.50 USD')
+    && str_contains($bundleReply['message'], 'Total por ambos: Bs. REF 27.50')
     && str_contains($bundleReply['message'], 'dentro del máximo'),
     'recomienda el par de menor precio en stock y calcula el total con presupuesto', $bundleReply);
 

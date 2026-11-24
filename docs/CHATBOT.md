@@ -10,7 +10,7 @@ El chat de la tienda funciona con el catálogo y el historial de VERDELIA. Los v
 - «Quiero un cují» y «Prosopis juliflora» reconocen el mismo árbol y aclaran si no está publicado en el catálogo.
 - «Quiero una planta» o «Busco una maceta» muestra opciones disponibles en el primer mensaje. Cada recomendación incluye una imagen, descripción, datos de la ficha y enlace al producto. Si falta un dato útil, el chat hace una pregunta opcional al final y aprovecha la respuesta para filtrar las opciones.
 - Si prefieres no indicar un presupuesto, el asistente conserva los demás criterios y muestra las opciones sin aplicar un límite de precio. Las fichas solo presentan las medidas y condiciones que constan en el catálogo.
-- «Recomiéndame una planta sin sol directo por menos de $20» filtra por luz, presupuesto en USD y existencias. Cada recomendación muestra precio y unidades disponibles.
+- «Recomiéndame una planta sin sol directo por menos de Bs. REF 20» filtra por luz, presupuesto en bolívares de referencia y existencias. Cada recomendación muestra precio y unidades disponibles.
 - «Quiero una maceta barata» ordena los artículos disponibles por precio. También puedes indicar tamaño y cantidad; si escribes «en total», compara el presupuesto con el subtotal y lo muestra.
 - Puedes elegir una tarjeta con «la primera», «la segunda» o «la opción 2» y luego pedir precio, stock o comparar cuidados.
 - Las preguntas combinadas sobre producto, precio, existencias y envío se responden con los datos del catálogo y las condiciones de la demostración. Los pedidos son simulados y no se envían.

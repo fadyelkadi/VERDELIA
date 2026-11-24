@@ -5,7 +5,7 @@
   const pageProducts = JSON.parse(productData?.content.textContent || '[]');
   const productBySku = new Map(pageProducts.map((product) => [product.sku, product]));
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
-  const money = (cents) => '$' + (Number(cents || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = (cents) => 'Bs. REF ' + (Number(cents || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   let cartProducts = new Map();
   let toastTimer;
 

@@ -8,7 +8,7 @@ function h(string|int|float|null $value): string
 
 function money(int $cents): string
 {
-    return '$' . number_format($cents / 100, 2, '.', ',');
+    return 'Bs. REF ' . number_format($cents / 100, 2, '.', ',');
 }
 
 function lowercase(string $text): string

@@ -10,7 +10,7 @@ final class ShopChatQuery
     private const BRIGHT_LIGHT = '(?:luz brillante|brillante|muy luminos[oa]|mucha luz|buena iluminacion|buena luz natural)';
     private const EXCLUSION = 'no (?:quiero|busco|me interesa|me recomiendes)|sin|evita(?:r)?|excepto';
     private const AMOUNT = '([0-9]{1,6}(?:[.,][0-9]{1,2})?)(?![0-9]|[.,][0-9])';
-    private const USD = '(?:usd|dolares?(?: estadounidenses)?|\x24)';
+    public const CURRENCY_PATTERN = '(?:usd|dolares?(?: estadounidenses)?|bolivares?(?: de referencia)?|ves|bs\.?\s*(?:ref)?|ref(?: de bolivares?)?|\x24)';
     private const NO_BUDGET = '\b(?:sin presupuesto|no tengo presupuesto|presupuesto ilimitado|sin limite(?: de gasto| de presupuesto)?|(?:prefiero|quiero) no (?:decir|dar|compartir|indicar)(?:te)? (?:mi |el |un )?presupuesto|no (?:quiero|voy a) (?:decir|dar|compartir|indicar)(?:te)? (?:mi |el |un )?presupuesto|(?:da igual|no (?:me )?importa) (?:el )?precio|cualquier precio|sin filtro de precio)\b';
 
     public string $text;
@@ -149,9 +149,9 @@ final class ShopChatQuery
         $this->romanticGift = preg_match('/\b(?:romantic[oa]s?|novi[oa]s?|parejas?|aniversarios?)\b/u', $text) === 1;
         $this->recommendation = preg_match('/\b(recomienda\w*|recomiende\w*|recomendar\w*|que (?:me )?recomiendas?|sugiere\w*|sugerencias?|que plantas?|cuales plantas?|busco|(?:quiero|necesit[oa])\s+(?:(?:\d+|una?|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\s+)?(?:plantas?|macetas?|cactus|suculentas?|arbol(?:es)?|bonsais?|accesorios?)|(?:quiero|necesito|busco) algo verde)\b/u', $text) === 1 || $this->romanticGift;
         $this->catalogIntent = preg_match('/\b(precios?|cuest[ae]\w*|costaria\w*|a cuanto|cuanto|stock|hay|tienen?|queda[n]?|disponib\w*|venden?|vender|vale[n]?|comprar|necesito|quiero|busco|unidades?)\b/u', $text) === 1;
-        $this->unsupportedCurrency = preg_match('/\b(euros?|eur|bolivares?|ves|bs|pesos?|cop|mxn|ars|brl|reales|btc|usdt|moneda local)\b|\b\d+\s+soles\b|€|£/u', $folded) === 1;
+        $this->unsupportedCurrency = preg_match('/\b(euros?|eur|pesos?|cop|mxn|ars|brl|reales|btc|usdt|moneda local)\b|\b\d+\s+soles\b|€|£/u', $folded) === 1;
         $this->budgetMentioned = preg_match('/\b(?:presupuesto|limite de gasto|sin presupuesto|no tengo presupuesto|presupuesto ilimitado|sin limite(?: de gasto| de presupuesto)?|gratis|sin costo|sin coste|no puedo pagar|no tengo dinero)\b/u', $folded) === 1
-            || preg_match('/(?:'.self::USD.'\s*'.self::AMOUNT.'|'.self::AMOUNT.'\s*'.self::USD.')/u', $folded) === 1;
+            || preg_match('/(?:'.self::CURRENCY_PATTERN.'\s*'.self::AMOUNT.'|'.self::AMOUNT.'\s*'.self::CURRENCY_PATTERN.')/u', $folded) === 1;
         $unlimitedBudget = preg_match('/'.self::NO_BUDGET.'/u', $folded) === 1;
         $this->budgetMentioned = $this->budgetMentioned || $unlimitedBudget;
         $measureUnit = '(?:\s*(?:cm|centimetros|mm|milimetros)|\s+de diametro)\b';
@@ -174,7 +174,7 @@ final class ShopChatQuery
             $this->minSizeCm = (int)floor((int)$measure[1] / $scale) + (preg_match('/\b(?:mas de|mayor(?:es)?|por encima de)\b/u', $measure[0]) === 1 ? 1 : 0);
             $budgetText = preg_replace($minMeasurePattern, ' ', $folded) ?? $folded;
         }
-        $explicitBudgetCap = preg_match('/\b(?:hasta|maximo(?: de)?|menos de|por debajo de|no (?:cueste(?:n)? )?mas de|tope(?: total)?(?: de)?|presupuesto(?: total)?(?: (?:es|de))?)\s+(?:'.self::USD.'\s*)?\d/u', $budgetText) === 1;
+        $explicitBudgetCap = preg_match('/\b(?:hasta|maximo(?: de)?|menos de|por debajo de|no (?:cueste(?:n)? )?mas de|tope(?: total)?(?: de)?|presupuesto(?: total)?(?: (?:es|de))?)\s+(?:'.self::CURRENCY_PATTERN.'\s*)?\d/u', $budgetText) === 1;
         $this->conflictingBudget = $unlimitedBudget && $explicitBudgetCap;
         $budgetText = $this->normalizeTextualMoney($budgetText);
         $this->budget = $this->parseBudget($budgetText);
@@ -599,10 +599,10 @@ final class ShopChatQuery
     {
         if (preg_match('/'.self::NO_BUDGET.'/u', $message) === 1) return null;
         if (preg_match('/\b(?:gratis|sin costo|sin coste|no puedo pagar|no tengo dinero)\b/u', $message) === 1) return ['min'=>0, 'max'=>0];
-        if (preg_match('/^[\s¿¡]*(?:'.self::USD.'\s*'.self::AMOUNT.'|'.self::AMOUNT.'\s*'.self::USD.')\s*[.!?]?\s*$/uD', $message, $amount)) {
+        if (preg_match('/^[\s¿¡]*(?:'.self::CURRENCY_PATTERN.'\s*'.self::AMOUNT.'|'.self::AMOUNT.'\s*'.self::CURRENCY_PATTERN.')\s*[.!?]?\s*$/uD', $message, $amount)) {
             return ['max'=>$this->cents($amount[1] !== '' ? $amount[1] : $amount[2])];
         }
-        $money = '(?:'.self::USD.'\s*)?'.self::AMOUNT.'(?:\s*'.self::USD.')?';
+        $money = '(?:'.self::CURRENCY_PATTERN.'\s*)?'.self::AMOUNT.'(?:\s*'.self::CURRENCY_PATTERN.')?';
         if (preg_match('/\bentre\s+'.$money.'\s+(?:y|a)\s+'.$money.'/u', $message, $match)) {
             $min = $this->cents($match[1]);
             $max = $this->cents($match[2]);
@@ -621,7 +621,7 @@ final class ShopChatQuery
         $atLeast = '(?:por lo menos|al menos|minimo(?: de)?|a partir de)';
         // A quantity constraint without a currency belongs to the stock question.
         $quantityOnly = preg_match('/\b(?:hay|tienen?|tienes|quedan?|necesito|quiero comprar)\s+(?:por lo menos|al menos|(?:mas|menos) de)\s+\d+/u', $message)
-            && preg_match('/'.self::USD.'/u', $message) !== 1;
+            && preg_match('/'.self::CURRENCY_PATTERN.'/u', $message) !== 1;
         if ($quantityOnly) return null;
         $unreadableExclusion = '/\bno (?:quiero|busco|recomiendes)[^,;.!?]{0,65}\b(?:cuest[ae]n?|pasen?|superen?)\s+(?:mas|menos) de\b/u';
         if (preg_match($unreadableExclusion, $message)) return [];
@@ -630,7 +630,7 @@ final class ShopChatQuery
             ['pattern'=>'\b'.$less.'\s+|<\s*', 'bound'=>'max', 'offset'=>-1],
             ['pattern'=>'\b'.$atLeast.'\s+|>=\s*|≥\s*', 'bound'=>'min', 'offset'=>0],
             ['pattern'=>'(?<!no )(?<!no cueste )(?<!no cuesten )\b'.$more.'\s+|>\s*', 'bound'=>'min', 'offset'=>1],
-            ['pattern'=>'\b(?:tengo|puedo gastar|puedo pagar)\s+(?='.self::USD.'\s*|\d+(?:[.,]\d{1,2})?\s*'.self::USD.')', 'bound'=>'max', 'offset'=>0],
+            ['pattern'=>'\b(?:tengo|puedo gastar|puedo pagar)\s+(?='.self::CURRENCY_PATTERN.'\s*|\d+(?:[.,]\d{1,2})?\s*'.self::CURRENCY_PATTERN.')', 'bound'=>'max', 'offset'=>0],
         ];
         $bounds = [];
         foreach ($operators as $operator) {
@@ -643,7 +643,7 @@ final class ShopChatQuery
         }
         if ($bounds !== []) return ($bounds['min'] ?? 0) <= ($bounds['max'] ?? PHP_INT_MAX) ? $bounds : [];
         if (preg_match('/\bpresupuesto\b/u', $message)
-            || preg_match('/(?:'.self::USD.'\s*'.self::AMOUNT.'|'.self::AMOUNT.'\s*'.self::USD.')/u', $message)) {
+            || preg_match('/(?:'.self::CURRENCY_PATTERN.'\s*'.self::AMOUNT.'|'.self::AMOUNT.'\s*'.self::CURRENCY_PATTERN.')/u', $message)) {
             return [];
         }
         return null;
@@ -662,10 +662,10 @@ final class ShopChatQuery
             'treinta'=>'30', 'veinticinco'=>'25', 'veinte'=>'20', 'quince'=>'15', 'diez'=>'10',
             'nueve'=>'9', 'ocho'=>'8', 'siete'=>'7', 'seis'=>'6', 'cinco'=>'5', 'cuatro'=>'4', 'tres'=>'3', 'dos'=>'2', 'uno'=>'1',
         ];
-        $moneyCue = '(?:usd|dolares?|presupuesto|precio|cueste|cuesten|barat[oa]|menos de|por debajo de|hasta|maxim[oa]|como mucho|limite)';
+        $moneyCue = '(?:usd|dolares?|bolivares?|bs\.?|ref|presupuesto|precio|cueste|cuesten|barat[oa]|menos de|por debajo de|hasta|maxim[oa]|como mucho|limite)';
         foreach ($numberWords as $word => $number) {
             $message = preg_replace_callback('/(\b'.$moneyCue.'\b[^.!?]{0,36})\b'.$word.'\b/u', static fn(array $match): string => $match[1].$number, $message) ?? $message;
-            $message = preg_replace('/\b'.$word.'\b([^.!?]{0,16}\b(?:usd|dolares?)\b)/u', $number.'$1', $message) ?? $message;
+            $message = preg_replace('/\b'.$word.'\b([^.!?]{0,16}\b(?:usd|dolares?|bolivares?|bs\.?|ref)\b)/u', $number.'$1', $message) ?? $message;
         }
         return $message;
     }

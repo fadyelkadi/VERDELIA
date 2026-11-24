@@ -77,15 +77,15 @@ try {
         'muestra opciones con datos de la ficha y deja una pregunta opcional sobre luz', $humidStart);
     $lowLightEasy = 'Hay poca luz, no tengo presupuesto. Me gustaría que fuera fácil de cuidar.';
     $budgetClarifier = $ask($lowLightEasy, null, [$humidRequest]);
-    $assert($paths($budgetClarifier) === [$sansevieria] && str_contains($budgetClarifier['message'], '$27.50')
+    $assert($paths($budgetClarifier) === [$sansevieria] && str_contains($budgetClarifier['message'], 'Bs. REF 27.50')
         && str_contains($budgetClarifier['message'], '21 unidades disponibles')
         && str_contains($budgetClarifier['message'], 'no registran tolerancia a humedad ni ventilación'),
         'interpreta que no hay límite de presupuesto y recomienda con precio y stock', $budgetClarifier);
     $noBudgetFollowUp = $ask('no tengo presupuesto', null, ['Recomiéndame una planta para poca luz hasta $20']);
-    $assert($paths($noBudgetFollowUp) === [$sansevieria] && str_contains($noBudgetFollowUp['message'], '$27.50'),
+    $assert($paths($noBudgetFollowUp) === [$sansevieria] && str_contains($noBudgetFollowUp['message'], 'Bs. REF 27.50'),
         'conserva la luz y elimina un límite de presupuesto previo cuando el cliente lo aclara', $noBudgetFollowUp);
     $budgetFollowUp = $ask('entre 10 y 20 dólares', null, [$humidRequest, $lowLightEasy]);
-    $assert($paths($budgetFollowUp) === [$sansevieria] && str_contains($budgetFollowUp['message'], '$27.50')
+    $assert($paths($budgetFollowUp) === [$sansevieria] && str_contains($budgetFollowUp['message'], 'Bs. REF 27.50')
         && str_contains($budgetFollowUp['message'], 'fuera del rango')
         && str_contains($budgetFollowUp['message'], 'no registran tolerancia a humedad ni ventilación')
         && !in_array($aloe, $paths($budgetFollowUp), true) && !in_array($cactus, $paths($budgetFollowUp), true),
@@ -96,7 +96,7 @@ try {
 
     $patio = $ask('Quiero una planta para el patio, hay buena ilumoinacion y no tengo presupuesto');
     $assert(in_array('/producto/suculenta-echeveria', $paths($patio), true)
-        && str_contains($patio['message'], 'Precio: $12.90 USD') && str_contains($patio['message'], '27 unidades disponibles'),
+        && str_contains($patio['message'], 'Precio: Bs. REF 12.90') && str_contains($patio['message'], '27 unidades disponibles'),
         'entiende patio, error de escritura y muestra una planta en stock con precio', $patio);
     $flower = $ask('quiero una flor');
     $assert($paths($flower) === [] && str_contains($flower['message'], 'flores disponibles')
@@ -114,7 +114,7 @@ try {
         'responde la consulta plural sobre tierras con disponibilidad real del catálogo', $soilTypes);
     $maceta = $ask('quiero una meceta irrompible');
     $assert(in_array('/producto/maceta-arena-14', $paths($maceta), true)
-        && str_contains($maceta['message'], '$16.00 USD') && str_contains($maceta['message'], '40 unidades disponibles')
+        && str_contains($maceta['message'], 'Bs. REF 16.00') && str_contains($maceta['message'], '40 unidades disponibles')
         && str_contains($maceta['message'], 'no puedo asegurar que alguna sea irrompible'),
         'reconoce maceta con errata y no inventa resistencia', $maceta);
     $optionSlugs = array_map(static fn(array $product): string => substr($product['url'], strlen('/producto/')), $maceta['products'] ?? []);
@@ -125,7 +125,7 @@ try {
         'selecciona la segunda opción en el orden en que se mostraron las tarjetas', $selectedPlanter);
     $totalBudget = $ask('Quiero dos macetas de 14 cm por menos de $35 en total');
     $assert($paths($totalBudget) === ['/producto/maceta-arena-14']
-        && str_contains($totalBudget['message'], 'subtotal de 2 unidades es $32.00 USD'),
+        && str_contains($totalBudget['message'], 'subtotal de 2 unidades es Bs. REF 32.00'),
         'filtra por tamaño, unidades y presupuesto total', $totalBudget);
     $cannabis = $ask('quiero una planta de cannavis para mi patio');
     $assert(in_array('/producto/suculenta-echeveria', $paths($cannabis), true)
@@ -145,21 +145,21 @@ try {
         && !str_contains($none['message'], 'Encontré estas opciones'), 'no ofrece una alternativa demasiado alejada del presupuesto', $none);
     $inclusive = $ask('Recomienda una planta sin sol directo de hasta $18,00');
     $assert(in_array($bambu, $paths($inclusive), true) && !in_array($monstera, $paths($inclusive), true)
-        && str_contains($inclusive['message'], '$18.00'), 'límite inclusivo con decimales', $inclusive);
+        && str_contains($inclusive['message'], 'Bs. REF 18.00'), 'límite inclusivo con decimales', $inclusive);
     $exclusive = $ask('Recomienda una planta sin sol directo por menos de $18');
     $assert($paths($exclusive) === [$aloe], 'menos de excluye el precio exacto', $exclusive);
     $currency = $ask('Recomiéndame una planta para poca luz por menos de 30 euros');
-    $assert($paths($currency) === [] && str_contains($currency['message'], 'USD'), 'no asume conversión de moneda', $currency);
+    $assert($paths($currency) === [] && str_contains($currency['message'], 'Bs. REF'), 'responde con la moneda de referencia del catálogo sin asumir una tasa actual', $currency);
     $negatedBudget = $ask('Recomiéndame una planta sin sol directo que no cueste más de 18 USD');
     $assert(in_array($bambu, $paths($negatedBudget), true) && !in_array($monstera, $paths($negatedBudget), true),
         'una negación de precio actúa como máximo', $negatedBudget);
 
     $named = $ask('Buenas, ¿me podría decir cuánto cuesta la Monstera?');
-    $assert($paths($named) === [$monstera] && str_contains($named['message'], '$42.00'), 'consulta natural de precio', $named);
+    $assert($paths($named) === [$monstera] && str_contains($named['message'], 'Bs. REF 42.00'), 'consulta natural de precio', $named);
     $followUp = $ask('¿Y cuántas quedan?', $named['product_context']);
     $assert($paths($followUp) === [$monstera] && str_contains($followUp['message'], '14 unidades'), 'conserva el referente del seguimiento', $followUp);
     $priceFollowUp = $ask('¿Cuánto me copstaria?', $named['product_context']);
-    $assert($paths($priceFollowUp) === [$monstera] && str_contains($priceFollowUp['message'], '$42.00')
+    $assert($paths($priceFollowUp) === [$monstera] && str_contains($priceFollowUp['message'], 'Bs. REF 42.00')
         && str_contains($priceFollowUp['message'], '14 unidades'), 'resuelve consulta de precio con errata y contexto', $priceFollowUp);
     $unknown = $ask('¿Y cuántas quedan de Jazmín?', $named['product_context']);
     $assert($paths($unknown) === [], 'no usa un contexto obsoleto para un producto explícito desconocido', $unknown);
@@ -170,7 +170,7 @@ try {
         $assert($paths($stock) === [$monstera] && str_contains($stock['message'], 'No hay 20 unidades'), 'cantidad mayor que la existencia', $stock);
     }
     $plural = $ask('¿Cuánto cuestan las sansevierias?');
-    $assert($paths($plural) === [$sansevieria] && str_contains($plural['message'], '$27.50'), 'reconoce el plural', $plural);
+    $assert($paths($plural) === [$sansevieria] && str_contains($plural['message'], 'Bs. REF 27.50'), 'reconoce el plural', $plural);
     $typo = $ask('¿Cuánto cuesta la mostrera?');
     $assert($paths($typo) === [] && str_contains($typo['message'], '¿Te refieres a Monstera'), 'pide confirmación de una errata', $typo);
     $both = $ask('¿Cuánto cuestan la Monstera y el Aloe?');
@@ -181,10 +181,10 @@ try {
 
     $planters = $ask('Busco dos macetas de 14 cm');
     $assert(count($paths($planters)) === 1 && ($planters['products'][0]['size'] ?? '') === '14 cm'
-        && ($planters['products'][0]['subtotal'] ?? '') === '$32.00 USD por 2 unidades',
+        && ($planters['products'][0]['subtotal'] ?? '') === 'Bs. REF 32.00 por 2 unidades',
         'encuentra la maceta y publica su medida y subtotal para la ficha', $planters);
     $subtotal = $ask('Hasta $35 en total', null, ['Busco dos macetas de 14 cm', 'Gracias']);
-    $assert($paths($subtotal) === $paths($planters) && str_contains($subtotal['message'], '$32.00'),
+    $assert($paths($subtotal) === $paths($planters) && str_contains($subtotal['message'], 'Bs. REF 32.00'),
         'conserva categoría, tamaño y cantidad después de una pausa', $subtotal);
 
     $options = ['monstera-deliciosa', 'aloe-vera-compacta'];
@@ -320,19 +320,19 @@ try {
         'mantiene la condición de flores en una petición con más de un criterio', $flowers);
     $priceDrainage = $ask('¿Cuánto cuesta la Maceta Arena 14 cm y tiene drenaje?');
     $assert($paths($priceDrainage) === ['/producto/maceta-arena-14']
-        && str_contains($priceDrainage['message'], '$16.00') && str_contains($priceDrainage['message'], 'no confirma el drenaje'),
+        && str_contains($priceDrainage['message'], 'Bs. REF 16.00') && str_contains($priceDrainage['message'], 'no confirma el drenaje'),
         'responde las dos partes de la pregunta sobre un producto', $priceDrainage);
     $twoSupplies = $ask('¿Venden perlita o semillas?');
     $assert(str_contains($twoSupplies['message'], 'perlita') && str_contains($twoSupplies['message'], 'semillas'),
         'informa la disponibilidad de cada insumo solicitado', $twoSupplies);
     $newTotal = $ask('Hasta $35', null, ['Quiero dos macetas hasta $30 en total']);
-    $assert($paths($newTotal) === ['/producto/maceta-arena-14'] && str_contains($newTotal['message'], '$32.00'),
+    $assert($paths($newTotal) === ['/producto/maceta-arena-14'] && str_contains($newTotal['message'], 'Bs. REF 32.00'),
         'cambia el monto y conserva el tope para toda la compra', $newTotal);
     $sizeRange = $ask('Busco dos macetas entre 14 y 18 cm hasta $45 en total');
     $assert($paths($sizeRange) === ['/producto/maceta-arena-14', '/producto/maceta-terracota-18']
-        && str_contains($sizeRange['message'], '$39.80'), 'filtra el intervalo en centímetros y el presupuesto total', $sizeRange);
+        && str_contains($sizeRange['message'], 'Bs. REF 39.80'), 'filtra el intervalo en centímetros y el presupuesto total', $sizeRange);
     $lastCard = $ask('¿Y el precio de la última?', null, [], ['maceta-arena-14', 'maceta-terracota-18']);
-    $assert($paths($lastCard) === ['/producto/maceta-terracota-18'] && str_contains($lastCard['message'], '$19.90'),
+    $assert($paths($lastCard) === ['/producto/maceta-terracota-18'] && str_contains($lastCard['message'], 'Bs. REF 19.90'),
         'resuelve la última tarjeta de la lista enviada por el chat', $lastCard);
 
     $forecast = $ask('Tendencia de demanda del Aloe');
@@ -360,7 +360,7 @@ try {
         && !str_contains($echeveria['message'], 'cuesta'), 'describe la echeveria al pedir su definición', $echeveria);
     $mixedCare = $ask('¿Cómo riego la costilla de Adán y cuánto cuesta?');
     $assert($paths($mixedCare) === [$monstera] && str_contains($mixedCare['message'], 'sustrato estén secos')
-        && str_contains($mixedCare['message'], '$42.00'), 'reconoce el nombre común y responde sobre riego y precio', $mixedCare);
+        && str_contains($mixedCare['message'], 'Bs. REF 42.00'), 'reconoce el nombre común y responde sobre riego y precio', $mixedCare);
     $wateringCan = $ask('¿Cuántos litros caben en la regadera mini?');
     $assert($paths($wateringCan) === ['/producto/regadera-mini-verde'] && str_contains($wateringCan['message'], 'un litro'),
         'responde por las especificaciones de un accesorio', $wateringCan);
